@@ -1,0 +1,2 @@
+src/modules/player/render/renderPlayerSkeletal.ts(187,26): error TS2339: Property 'flipX' does not exist on type '{ x: number; y: number; rotation: number; scale: number; zIndex: number; } | { x: number; y: number; rotation: number; scale: number; zIndex: number; flipX: boolean; }'.
+  Property 'flipX' does not exist on type '{ x: number; y: number; rotation: number; scale: number; zIndex: number; }'.

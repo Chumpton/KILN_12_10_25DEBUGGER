@@ -1,0 +1,19 @@
+
+/* Custom Scrollbar for Grimoire UI */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px; /* Thin */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(133, 112, 86, 0.5); /* Translucent Brown (#857056) */
+    border-radius: 9999px; /* Ovular/Capsule */
+    border: 1px solid rgba(0,0,0,0.1); /* Subtle definition */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(168, 144, 104, 0.7); /* Lighter on hover */
+}

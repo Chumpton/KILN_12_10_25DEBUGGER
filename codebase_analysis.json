@@ -1,0 +1,116 @@
+{
+    "project": {
+        "name": "3rd-of-'kiln'-the-emoji-arpg",
+        "version": "0.0.0",
+        "description": "An isometric ARPG focused on spell creation and combat, featuring an 'Emoji' aesthetic mixed with pixel art."
+    },
+    "technology_stack": {
+        "core": "TypeScript",
+        "framework": "React 18",
+        "bundler": "Vite",
+        "rendering": {
+            "ui": "React",
+            "game_canvas": "PixiJS (via @pixi/react)",
+            "animation": "Framer Motion"
+        },
+        "state_management": "React useState / useRef (Game Loop uses ref-based state mutation)",
+        "physics": "Custom isometric physics system"
+    },
+    "architecture": {
+        "pattern": "Hybrid ECS-like",
+        "description": "The project separates the 'Game Loop' from the React UI. The `GameLoop.ts` orchestrates systems (Physics, Spells, Scanning) and updates a mutable `GameState` object. React components (HUD, GameCanvas) verify and render this state.",
+        "key_directories": {
+            "src/systems": "Core logic loops (GameLoop, Physics, Input)",
+            "src/modules": "Feature-specific domain logic (Spells, Enemies, Player)",
+            "src/components": "React UI components (HUD, MainMenu, Editors)",
+            "src/content": "Game content definitions (Items, Registry)",
+            "src/data": "Static data and JSON registries"
+        }
+    },
+    "features": {
+        "gameplay": [
+            "Isometric Movement (WASD/Click)",
+            "Spell Combat (Elemental Types: Fire, Ice, Lightning, Earth, Wind, etc.)",
+            "Action RPG Mechanics (Health, Mana, Shield, Cooldowns)",
+            "Inventory & Equipment System",
+            "Quest System (Procedural Kill/Collect)",
+            "Enemy AI (Patrol, Chase, Attack)"
+        ],
+        "tools": [
+            "World Editor (In-game object placement)",
+            "Spell Studio (Visual editor for spell properties)",
+            "Pixel Forge (Pixel Art Creator)",
+            "Bone Rigger (Skeletal Animation Tool)"
+        ],
+        "ui": {
+            "main_menu": "Parallax cloud background, stylized interactive menu",
+            "hud": "Health/Resource bars, Hotbar, XP tracking",
+            "dev_tools": "Spawn menu, state manipulators"
+        }
+    },
+    "content_summary": {
+        "spells": [
+            "Fireball",
+            "Rolling Magma",
+            "Flameblast",
+            "Firestorm",
+            "Righteous Fire",
+            "Flame Wall",
+            "Inferno Surge",
+            "Meteorfall",
+            "Cinder Dash",
+            "Heat Bloom",
+            "Frostbolt",
+            "Freezing Pulse",
+            "Glacial Spike",
+            "Frozen Nova",
+            "Ice Wall",
+            "Lightning Bolt",
+            "Spark Chain",
+            "Thunder Slam",
+            "Gust",
+            "Wind Blade",
+            "Tornado",
+            "Boulder Toss",
+            "Rock Aura",
+            "Earthquake",
+            "Arcane Explosion",
+            "Teleport",
+            "Blink",
+            "Sword Swipe",
+            "Whirlwind Strike"
+        ],
+        "enemies": [
+            "Melee",
+            "Caster",
+            "Boss",
+            "Ant",
+            "Golem",
+            "Spitter",
+            "Dummy"
+        ],
+        "equipment_slots": [
+            "HEAD",
+            "CHEST",
+            "LEGS",
+            "FEET",
+            "SHOULDERS",
+            "MAIN_HAND",
+            "OFF_HAND"
+        ],
+        "stats": [
+            "Vitality",
+            "Power",
+            "Haste",
+            "Swiftness"
+        ]
+    },
+    "file_structure_overview": {
+        "src/App.tsx": "Main entry point, routing, and UI composition",
+        "src/systems/GameLoop.ts": "Main simulation loop",
+        "src/modules/spells/SpellSystem.ts": "Spell casting logic and registry",
+        "src/modules/enemies/EnemySystem.ts": "Enemy AI and spawning",
+        "src/components/GameCanvas.tsx": "PixiJS bridge component",
+        "src/types.ts": "Global type definitions including GameState and Entity models"
+    }
+}

@@ -1,0 +1,4 @@
+src/modules/player/render/renderPlayerSkeletal.ts(187,26): error TS2339: Property 'flipX' does not exist on type '{ x: number; y: number; rotation: number; scale: number; zIndex: number; } | { x: number; y: number; rotation: number; scale: number; zIndex: number; flipX: boolean; }'.
+  Property 'flipX' does not exist on type '{ x: number; y: number; rotation: number; scale: number; zIndex: number; }'.
+src/modules/spells/SpellBehavior.ts(2,32): error TS2307: Cannot find module '../SpellSystem' or its corresponding type declarations.
+src/modules/spells/SpellRegistry.ts(22,14): error TS2740: Type '{ [x: string]: SpellDef; }' is missing the following properties from type 'Record<SpellType, SpellDef>': FIRE, ROLLING_MAGMA, FLAMEBLAST, FIRESTORM, and 59 more.

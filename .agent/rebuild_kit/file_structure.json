@@ -1,0 +1,61 @@
+{
+    "project_name": "KILN_REBORN",
+    "root": "src",
+    "structure": {
+        "engine": {
+            "core": {
+                "GameLoop.ts": "Main RequestAnimationFrame loop, decoupled from React",
+                "InputSystem.ts": "Handles Keyboard/Mouse state",
+                "Time.ts": "Delta time and fixed timestep management"
+            },
+            "graphics": {
+                "Renderer.ts": "Master renderer (Canvas context manager)",
+                "SpriteBatch.ts": "Optimized batch renderer for tiles/sprites",
+                "Camera.ts": "Viewport and coordinate conversion (World <-> Screen)"
+            },
+            "assets": {
+                "AssetLoader.ts": "Centralized async asset loading/preloading",
+                "TextureCache.ts": "Map of loaded images"
+            }
+        },
+        "game": {
+            "World.ts": "Manages the Grid, Chunks, and Entities",
+            "GameState.ts": "Pure state object (Player, Enemies, Loot)",
+            "constants.ts": "Game balance and configuration"
+        },
+        "modules": {
+            "world": {
+                "WorldGen.ts": "Procedural generation logic (Noise, Biomes)",
+                "TileDefs.ts": "Tile definitions"
+            },
+            "entities": {
+                "Player.ts": "Player logic and state",
+                "Enemy.ts": "Enemy AI and state",
+                "EntityManager.ts": "pooling and management"
+            },
+            "combat": {
+                "SpellSystem.ts": "Spell cooldowns and casting logic",
+                "ProjectileSystem.ts": "Projectile movement and collision",
+                "DamageSystem.ts": "Health calculation and death"
+            }
+        },
+        "ui": {
+            "MainMenu": {
+                "MainMenu.tsx": "Entry point",
+                "components": [
+                    "Button.tsx",
+                    "SettingsParams.tsx"
+                ]
+            },
+            "HUD": {
+                "HUD.tsx": "Heads up display overlay",
+                "HealthBar.tsx": "Player health visual"
+            },
+            "App.tsx": "Root React Component (Canvas + UI composition)"
+        },
+        "utils": {
+            "math.ts": "Vector math, RNG",
+            "storage.ts": "Save/Load functionality"
+        }
+    }
+}
