@@ -143,9 +143,9 @@ export const updatePhysics = (
     callbacks: SpellCallbacks
 ) => {
     // Helper check for safe zone collision
+    // Helper check for safe zone collision - DISABLED
     const isInsideSafeZone = (x: number, y: number): boolean => {
-        const dist = getDistance({ x, y }, HEARTHSTONE_POS);
-        return dist < SAFE_ZONE_RADIUS;
+        return false;
     };
 
     // Shop Logic
@@ -219,6 +219,21 @@ export const updatePhysics = (
     state.projectiles.forEach(p => {
         if (p.isDead) return;
 
+        // Visual Projectile Optimization
+        if (p.data?.skipPhysics || p.data?.isVisual) {
+            const config = SPELL_REGISTRY[p.spellType];
+            const behaviorKey = config?.behaviorKey || 'GenericBehavior';
+            const behavior = BEHAVIOR_REGISTRY[behaviorKey];
+            behavior?.onUpdate?.(state, p, callbacks);
+
+            // basic motion + life decrement, then continue (skip collisions)
+            p.pos.x += p.velocity.x;
+            p.pos.y += p.velocity.y;
+            p.duration -= 1;
+            if (p.duration <= 0) p.isDead = true;
+            return;
+        }
+
         // --- BUFF WALL CHECK (Passing through Flame Wall) ---
         if (!p.isEnemy && !p.passedFlameWall) {
             state.areaEffects.forEach(ae => {
@@ -236,35 +251,7 @@ export const updatePhysics = (
             });
         }
 
-        // === SAFE ZONE LOGIC FOR PROJECTILES ===
-        // The Safe Zone border acts as a solid wall for player spells (cannot enter or exit).
-        if (!p.isEnemy) {
-            const currentDist = getDistance(p.pos, HEARTHSTONE_POS);
-            // Predict next position to check crossing
-            const nextZX = p.pos.x + p.velocity.x;
-            const nextZY = p.pos.y + p.velocity.y;
-            const nextDist = getDistance({ x: nextZX, y: nextZY }, HEARTHSTONE_POS);
 
-            const crossedOut = currentDist < SAFE_ZONE_RADIUS && nextDist >= SAFE_ZONE_RADIUS;
-            const crossedIn = currentDist >= SAFE_ZONE_RADIUS && nextDist < SAFE_ZONE_RADIUS;
-
-            if (crossedOut || crossedIn) {
-                p.isDead = true;
-                callbacks.createImpactPuff({ x: nextZX, y: nextZY }, p.spellType);
-
-                if (p.spellType === SpellType.FIRE) {
-                    const config = SPELL_REGISTRY[SpellType.FIRE];
-                    const shrapnelDmg = (config.shrapnelDamage || 2) + state.player.level;
-
-                    if (p.explosionRadius && p.explosionRadius > 0 && !p.isShrapnel) {
-                        callbacks.createExplosion(p.pos, p.explosionRadius, p.damage, config.color);
-                    } else if (state.player.level >= LEVEL_5_UNLOCK && !p.isShrapnel) {
-                        callbacks.createExplosionShrapnel(p.pos, shrapnelDmg);
-                    }
-                }
-                return;
-            }
-        }
 
         if (p.spellType === SpellType.BOMB && p.targetPos) {
             const distToTarget = getDistance(p.pos, p.targetPos);
@@ -371,18 +358,11 @@ export const updatePhysics = (
         // --- AI STATE MACHINE ---
 
         // 1. Determine State
-        const playerInSafeZone = isInsideSafeZone(state.player.pos.x, state.player.pos.y);
         const aggroRange = 14; // Increased from 8 (approx 350px equivalent)
         const deAggroRange = 9999; // Effectively infinite
 
-        if (playerInSafeZone) {
-            e.aiState = 'PATROL';
-            e.isAttacking = false; // Reset attack
-        } else {
-            if (distToPlayer < aggroRange) {
-                e.aiState = 'CHASE';
-            }
-            // Removed leash check: enemies stay in CHASE until player enters safe zone
+        if (distToPlayer < aggroRange) {
+            e.aiState = 'CHASE';
         }
 
         // Determine Facing Logic
@@ -751,6 +731,7 @@ export const updatePhysics = (
     // Projectile vs Enemy collisions
     state.projectiles.forEach(p => {
         if (p.isDead || p.spellType === SpellType.BOMB) return;
+        if (p.data?.skipCollision || p.data?.isVisual) return; // Optimization
         const config = SPELL_REGISTRY[p.spellType];
 
         if (!p.isEnemy) {

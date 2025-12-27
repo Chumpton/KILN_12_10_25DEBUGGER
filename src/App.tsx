@@ -9,7 +9,7 @@ import { createInitialPlayer } from './utils/factory';
 import { saveCharacter } from './utils/storage';
 
 export type GameActions = {
-  upgradeSpellTalent: (element: SpellElement, talentKey: string) => void;
+  upgradeTalent: (spellId: string, talentId: string) => void;
   upgradeBaseStat: (stat: 'vitality' | 'power' | 'haste' | 'swiftness') => void;
   usePotion: (type: 'health' | 'mana' | 'speed') => void;
   equipItem: (item: EquipmentItem) => void;
@@ -22,6 +22,8 @@ export type GameActions = {
   unlockSpell: (spell: SpellType) => void;
   equipCard: (spell: SpellType, card: import('./modules/cards/types').CardInstance) => void;
   unequipCard: (spell: SpellType, cardInstanceId: string) => void;
+  injectDust: (spell: SpellType, amount: number) => void;
+  upgradeSpell: (spell: SpellType) => void;
 };
 
 function App() {
@@ -46,7 +48,7 @@ function App() {
   });
 
   const gameActionsRef = useRef<GameActions>({
-    upgradeSpellTalent: () => { },
+    upgradeTalent: () => { },
     upgradeBaseStat: () => { },
     usePotion: () => { },
     equipItem: () => { },
@@ -58,7 +60,9 @@ function App() {
     toggleMount: () => { },
     unlockSpell: () => { },
     equipCard: () => { },
-    unequipCard: () => { }
+    unequipCard: () => { },
+    injectDust: () => { },
+    upgradeSpell: () => { }
   });
 
   // ...
@@ -118,8 +122,16 @@ function App() {
     setIsPaused(false);
   };
 
-  const handleUpgradeSpellTalent = (element: SpellElement, talentKey: string) => {
-    gameActionsRef.current.upgradeSpellTalent(element, talentKey);
+  const handleInjectDust = (spell: SpellType, amount: number) => {
+    gameActionsRef.current.injectDust(spell, amount);
+  };
+
+  const handleUpgradeSpell = (spell: SpellType) => {
+    gameActionsRef.current.upgradeSpell(spell);
+  };
+
+  const handleUpgradeTalent = (spellId: string, talentId: string) => {
+    gameActionsRef.current.upgradeTalent(spellId, talentId);
   };
 
   const handleUpgradeBaseStat = (stat: 'vitality' | 'power' | 'haste' | 'swiftness') => {
@@ -228,7 +240,7 @@ function App() {
             onRestart={handleRestart}
             onResume={handleResume}
             onQuit={handleQuit}
-            onUpgradeSpellTalent={handleUpgradeSpellTalent}
+            onUpgradeTalent={handleUpgradeTalent}
             onUpgradeBaseStat={handleUpgradeBaseStat}
             onUsePotion={handleUsePotion}
             onEquip={handleEquip}
@@ -239,8 +251,8 @@ function App() {
             onSelectSpell={handleSelectSpell}
             onToggleMount={handleToggleMount}
             onUnlockSpell={(spell) => gameActionsRef.current.unlockSpell(spell)}
-            onEquipCard={handleEquipCard}
-            onUnequipCard={handleUnequipCard}
+            onUpgradeSpell={handleUpgradeSpell}
+            onInjectDust={handleInjectDust}
             isPaused={isPaused}
             activeQuest={activeQuest}
             shopItems={shopItems}

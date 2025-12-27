@@ -24,7 +24,7 @@ export interface SpellGeometry {
     projectileSpreadDegrees: number;
     usesGravity: boolean;
     arcHeight: number;
-    aoeShape: 'circle' | 'line' | 'cone' | 'rect'; // Added cone/rect for safety
+    aoeShape: 'circle' | 'line' | 'cone' | 'rect';
     lineLength: number;
     lineWidth: number;
     orbitRadius: number;
@@ -109,7 +109,6 @@ export interface SpellUI {
     description: string;
     lore: string;
     categoryLabel: string;
-
 }
 
 export interface SpellUnlock {
@@ -124,13 +123,13 @@ export interface SpellUnlock {
 export interface SpellDefinition {
     id: string; // This should match SpellType
     name: string;
-    school: 'FIRE' | 'ICE' | 'LIGHTNING' | 'EARTH' | 'WIND' | 'ARCANE' | 'NATURE' | 'PHYSICAL' | 'UTILITY' | 'WEAPON'; // Updated to broader string or union
+    school: 'FIRE' | 'ICE' | 'LIGHTNING' | 'EARTH' | 'WIND' | 'ARCANE' | 'NATURE' | 'PHYSICAL' | 'UTILITY' | 'WEAPON';
     archetype: string;
     spellKey: string;
     behaviorKey: string;
     behaviorFile: string;
-    hotbarType: 'ACTIVE' | 'PASSIVE' | 'CHANNEL' | 'AURA' | 'DASH' | 'MELEE'; // inferred
-    spellType: 'Projectile' | 'AoE' | 'Field' | 'Beam' | 'Dash' | 'Melee' | 'Aura' | 'Totem' | 'Wave'; // inferred
+    hotbarType: 'ACTIVE' | 'PASSIVE' | 'CHANNEL' | 'AURA' | 'DASH' | 'MELEE';
+    spellType: 'Projectile' | 'AoE' | 'Field' | 'Beam' | 'Dash' | 'Melee' | 'Aura' | 'Totem' | 'Wave';
     baseStats: SpellBaseStats;
     geometry: SpellGeometry;
     targeting: SpellTargeting;
@@ -194,9 +193,9 @@ export interface SpellSkeletalAnimation {
     usesHead?: boolean;
     usesArms?: boolean;
     usesLegs?: boolean;
-    spawnOffset?: { x: number, y: number }; // [NEW] Manual offset for projectile spawn
-    handGlowOffset?: number; // Distance from wrist pivot to glow center (VFX anchor)
-    boneMotionProfiles?: Record<string, BoneMotionProfile>; // e.g. "arms", "torso"
+    spawnOffset?: { x: number, y: number };
+    handGlowOffset?: number;
+    boneMotionProfiles?: Record<string, BoneMotionProfile>;
 }
 
 export interface BoneMotionProfile {
@@ -231,7 +230,146 @@ export interface SpellHitReaction {
     screenShakeOnHit?: number;
 }
 
+
 export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
+    "GRAVITY_WELL": {
+        "id": "GRAVITY_WELL",
+        "name": "Gravity Well",
+        "school": "ARCANE",
+        "archetype": "AREA_EFFECT",
+        "spellKey": "GRAVITY_WELL",
+        "behaviorKey": "GravityWellBehavior",
+        "behaviorFile": "modules/spells/behaviors/GravityWellBehavior.ts",
+        "hotbarType": "ACTIVE",
+        "spellType": "AoE",
+        "baseStats": {
+            "baseDamage": 2,
+            "damagePerLevel": 1,
+            "critChance": 0,
+            "critMultiplier": 1,
+            "projectileSpeed": 0,
+            "projectileLifetime": 0,
+            "aoeRadius": 5,
+            "beamWidth": 0,
+            "beamTickInterval": 0,
+            "duration": 3000,
+            "manaCost": 25,
+            "cooldown": 10,
+            "castTime": 0.5,
+            "channelDrainPerSecond": 0,
+            "maxTargets": 10
+        },
+        "geometry": {
+            "projectileCount": 0,
+            "projectileSpreadDegrees": 0,
+            "usesGravity": false,
+            "arcHeight": 0,
+            "aoeShape": "circle",
+            "lineLength": 0,
+            "lineWidth": 0,
+            "orbitRadius": 0,
+            "orbitDuration": 0,
+            "homingStrength": 0,
+            "canRicochet": false,
+            "maxRicochets": 0
+        },
+        "targeting": {
+            "targetingMode": "cursor",
+            "requiresLineOfSight": true,
+            "canHitAllies": false,
+            "canHitCaster": false,
+            "maxPenetrations": 0,
+            "chainRange": 0,
+            "chainMaxJumps": 0
+        },
+        "status": {
+            "appliesBurn": false,
+            "appliesSlow": true,
+            "appliesFreeze": false,
+            "appliesShock": false,
+            "appliesPoison": false,
+            "appliesRoot": false,
+            "appliesBlind": false,
+            "appliesMark": false,
+            "statusIntensity": 0.3,
+            "executionThreshold": 0
+        },
+        "resource": {
+            "usesMana": true,
+            "usesHealth": false,
+            "healthCostPercent": 0,
+            "chargesMax": 1,
+            "chargeRegenTime": 10,
+            "tags": []
+        },
+        "talentFlags": {
+            "enableChargeCast": false,
+            "enableGapCloser": false,
+            "enableAftershock": false,
+            "enableOrbiting": false,
+            "enableDetonateOnKill": false,
+            "enableConvertAoEToField": true,
+            "enableChain": false,
+            "enablePierce": false,
+            "enableRicochet": false
+        },
+        "socketConfig": {
+            "maxCardSlots": 2,
+            "allowedRows": [
+                1
+            ],
+            "allowedCardTypes": [
+                "AoE",
+                "Utility"
+            ],
+            "defaultCards": []
+        },
+        "animation": {
+            "primaryColor": "#8b5cf6",
+            "secondaryColor": "#c4b5fd",
+            "highlightColor": "#ffffff",
+            "shadowColor": "#4c1d95",
+            "shapeLanguage": "circle",
+            "castPose": "cast_aoe",
+            "motionStyle": "implode",
+            "particleTypes": [
+                "sparkle",
+                "void"
+            ],
+            "trailStyle": "none",
+            "impactStyle": "implode",
+            "screenShake": "low",
+            "soundNotes": "suction_loop",
+            "vfxCastKey": "cast_arcane",
+            "vfxImpactKey": "impact_void",
+            "vfxAoeIndicatorKey": "area_void"
+        },
+        "ui": {
+            "iconId": "gravity_well",
+            "shortLabel": "Grav Well",
+            "description": "Create a singularity that pulls enemies in.",
+            "lore": "The fabric of space bends to your will.",
+            "categoryLabel": "Control"
+        },
+        "unlock": {
+            "requiredLevel": 1,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": ""
+        },
+        "data": {
+            "scaleOverride": 1,
+            "rotationOffset": 0,
+            "originOffset": {
+                "x": 0,
+                "y": -0.5
+            }
+        },
+        "skeletalAnimation": {
+            "handGlowOffset": 20
+        }
+    },
     "FIRE_FIREBALL": {
         "id": "FIRE_FIREBALL",
         "name": "Fireball",
@@ -247,14 +385,14 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "damagePerLevel": 5,
             "critChance": 0.1,
             "critMultiplier": 2,
-            "projectileSpeed": 15,
+            "projectileSpeed": 12.5,
             "projectileLifetime": 3,
             "aoeRadius": 1.5,
             "beamWidth": 0,
             "beamTickInterval": 0,
             "duration": 0,
             "manaCost": 10,
-            "cooldown": 0.5,
+            "cooldown": 0.4,
             "castTime": 0.309,
             "channelDrainPerSecond": 0,
             "maxTargets": 1
@@ -329,12 +467,12 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "defaultCards": []
         },
         "animation": {
-            "primaryColor": "#FFFF00",
-            "secondaryColor": "#FFD700",
+            "primaryColor": "#FF4500",
+            "secondaryColor": "#FFA500",
             "highlightColor": "#FFFFFF",
             "shadowColor": "#B8860B",
             "shapeLanguage": "zigzag",
-            "castPose": "channel_forward",
+            "castPose": "channel_raise",
             "motionStyle": "jitter",
             "particleTypes": [
                 "spark"
@@ -455,10 +593,150 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
         "data": {
             "originOffset": {
                 "x": 0,
-                "y": -1.15
+                "y": -0.5
             },
-            "scaleOverride": 1,
-            "rotationOffset": 0
+            "scaleOverride": 1.25,
+            "rotationOffset": 0,
+            "homingStrength": 0.05,
+            "trailWidth": 0,
+            "emberOnKill": true
+        },
+        "movement": {
+            "locksMovement": false,
+            "movementMultiplier": 1,
+            "allowsRotation": true
+        }
+    },
+    "ICE_BLIZZARD": {
+        "id": "ICE_BLIZZARD",
+        "name": "Blizzard",
+        "school": "ICE",
+        "archetype": "AREA_EFFECT",
+        "spellKey": "ICE_BLIZZARD",
+        "behaviorKey": "BlizzardBehavior",
+        "behaviorFile": "modules/spells/behaviors/BlizzardBehavior.ts",
+        "hotbarType": "ACTIVE",
+        "spellType": "AoE",
+        "baseStats": {
+            "baseDamage": 5,
+            "damagePerLevel": 2,
+            "critChance": 0.05,
+            "critMultiplier": 1.5,
+            "projectileSpeed": 0,
+            "projectileLifetime": 0,
+            "aoeRadius": 3.5,
+            "beamWidth": 0,
+            "beamTickInterval": 0,
+            "duration": 6000,
+            "manaCost": 35,
+            "cooldown": 12,
+            "castTime": 0.8,
+            "channelDrainPerSecond": 0,
+            "maxTargets": 20
+        },
+        "geometry": {
+            "projectileCount": 0,
+            "projectileSpreadDegrees": 0,
+            "usesGravity": false,
+            "arcHeight": 0,
+            "aoeShape": "circle",
+            "lineLength": 0,
+            "lineWidth": 0,
+            "orbitRadius": 0,
+            "orbitDuration": 0,
+            "homingStrength": 0,
+            "canRicochet": false,
+            "maxRicochets": 0
+        },
+        "targeting": {
+            "targetingMode": "cursor",
+            "requiresLineOfSight": false,
+            "canHitAllies": false,
+            "canHitCaster": false,
+            "maxPenetrations": 0,
+            "chainRange": 0,
+            "chainMaxJumps": 0
+        },
+        "status": {
+            "appliesBurn": false,
+            "appliesSlow": true,
+            "appliesFreeze": true,
+            "appliesShock": false,
+            "appliesPoison": false,
+            "appliesRoot": false,
+            "appliesBlind": false,
+            "appliesMark": false,
+            "statusIntensity": 0.4,
+            "executionThreshold": 0
+        },
+        "resource": {
+            "usesMana": true,
+            "usesHealth": false,
+            "healthCostPercent": 0,
+            "chargesMax": 1,
+            "chargeRegenTime": 0,
+            "tags": [
+                "ice",
+                "aoe",
+                "duration"
+            ]
+        },
+        "talentFlags": {
+            "enableChargeCast": false,
+            "enableGapCloser": false,
+            "enableAftershock": false,
+            "enableOrbiting": false,
+            "enableDetonateOnKill": false,
+            "enableConvertAoEToField": true,
+            "enableChain": false,
+            "enablePierce": false,
+            "enableRicochet": false
+        },
+        "socketConfig": {
+            "maxCardSlots": 2,
+            "allowedRows": [
+                1
+            ],
+            "allowedCardTypes": [
+                "AoE",
+                "Duration",
+                "Utility"
+            ],
+            "defaultCards": []
+        },
+        "animation": {
+            "primaryColor": "#00BFFF",
+            "secondaryColor": "#E0FFFF",
+            "highlightColor": "#FFFFFF",
+            "shadowColor": "#1E90FF",
+            "shapeLanguage": "circle",
+            "castPose": "cast_aoe",
+            "motionStyle": "swirl",
+            "particleTypes": [
+                "snow",
+                "fog"
+            ],
+            "trailStyle": "none",
+            "impactStyle": "freeze",
+            "screenShake": "low",
+            "soundNotes": "wind_loop",
+            "vfxCastKey": "cast_ice",
+            "vfxImpactKey": "impact_ice",
+            "vfxAoeIndicatorKey": "area_ice"
+        },
+        "ui": {
+            "iconId": "blizzard_storm",
+            "shortLabel": "Blizzard",
+            "description": "Summons a massive ice storm that chills and slows enemies.",
+            "lore": "Winter is coming.",
+            "categoryLabel": "Ice"
+        },
+        "unlock": {
+            "requiredLevel": 5,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": ""
         }
     },
     "FIRE_DETONATE": {
@@ -613,7 +891,7 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "duration": 0,
             "manaCost": 12,
             "cooldown": 0,
-            "castTime": 0.7,
+            "castTime": 0.45,
             "channelDrainPerSecond": 0,
             "maxTargets": 1
         },
@@ -733,7 +1011,7 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
         ],
         "data": {
             "scaleOverride": 0.1,
-            "rotationOffset": 2.5307274153917776,
+            "rotationOffset": 1.9198621771937625,
             "originOffset": {
                 "x": 0,
                 "y": -1.15
@@ -743,147 +1021,16 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "handGlowOffset": 20
         }
     },
-    "LIGHTNING_ARC_BEAM": {
-        "id": "LIGHTNING_ARC_BEAM",
-        "name": "Lightning Arc",
-        "school": "LIGHTNING",
-        "archetype": "CHANNEL_BEAM",
-        "spellKey": "LIGHTNING_ARC_BEAM",
-        "behaviorKey": "ArcBehavior",
-        "behaviorFile": "modules/spells/behaviors/ArcBehavior.ts",
-        "hotbarType": "CHANNEL",
-        "spellType": "Beam",
-        "baseStats": {
-            "baseDamage": 15,
-            "damagePerLevel": 2,
-            "critChance": 0.05,
-            "critMultiplier": 1.5,
-            "projectileSpeed": 0,
-            "projectileLifetime": 0,
-            "aoeRadius": 0,
-            "beamWidth": 5,
-            "beamTickInterval": 100,
-            "duration": 0,
-            "manaCost": 15,
-            "cooldown": 0,
-            "castTime": 0,
-            "channelDrainPerSecond": 15,
-            "maxTargets": 3
-        },
-        "geometry": {
-            "projectileCount": 0,
-            "projectileSpreadDegrees": 0,
-            "usesGravity": false,
-            "arcHeight": 0,
-            "aoeShape": "line",
-            "lineLength": 8,
-            "lineWidth": 1,
-            "orbitRadius": 0,
-            "orbitDuration": 0,
-            "homingStrength": 0,
-            "canRicochet": false,
-            "maxRicochets": 3
-        },
-        "targeting": {
-            "targetingMode": "cursor",
-            "requiresLineOfSight": true,
-            "canHitAllies": false,
-            "canHitCaster": false,
-            "maxPenetrations": 0,
-            "chainRange": 4,
-            "chainMaxJumps": 3
-        },
-        "status": {
-            "appliesBurn": false,
-            "appliesSlow": false,
-            "appliesFreeze": false,
-            "appliesShock": true,
-            "appliesPoison": false,
-            "appliesRoot": false,
-            "appliesBlind": false,
-            "appliesMark": false,
-            "statusIntensity": 1,
-            "executionThreshold": 0
-        },
-        "resource": {
-            "usesMana": true,
-            "usesHealth": false,
-            "healthCostPercent": 0,
-            "chargesMax": 1,
-            "chargeRegenTime": 0,
-            "tags": [
-                "lightning",
-                "channel",
-                "chain"
-            ]
-        },
-        "talentFlags": {
-            "enableChargeCast": false,
-            "enableGapCloser": false,
-            "enableAftershock": false,
-            "enableOrbiting": false,
-            "enableDetonateOnKill": false,
-            "enableConvertAoEToField": false,
-            "enableChain": true,
-            "enablePierce": false,
-            "enableRicochet": false
-        },
-        "socketConfig": {
-            "maxCardSlots": 3,
-            "allowedRows": [
-                1
-            ],
-            "allowedCardTypes": [
-                "Trigger",
-                "BeamModifier"
-            ],
-            "defaultCards": []
-        },
-        "animation": {
-            "primaryColor": "#FFD700",
-            "secondaryColor": "#FFFFFF",
-            "highlightColor": "#FFFFE0",
-            "shadowColor": "#DAA520",
-            "shapeLanguage": "jagged",
-            "castPose": "two_hand_channel",
-            "motionStyle": "jitter",
-            "particleTypes": [
-                "spark"
-            ],
-            "trailStyle": "electric",
-            "impactStyle": "spark_burst",
-            "screenShake": "low",
-            "soundNotes": "bzzzt",
-            "vfxCastKey": "",
-            "vfxImpactKey": "",
-            "vfxAoeIndicatorKey": ""
-        },
-        "ui": {
-            "iconId": "/ui/icons/elements/lightning_arc_icon.png",
-            "shortLabel": "Arc",
-            "description": "Channels a beam of lightning that chains between enemies.",
-            "lore": "Unlimited power.",
-            "categoryLabel": "Lightning Channel"
-        },
-        "unlock": {
-            "requiredLevel": 1,
-            "requiresQuestId": "",
-            "requiresSpellId": "",
-            "goldCost": 0,
-            "trainerId": ""
-        },
-        "visualLayers": []
-    },
     "ARCANE_PORTAL": {
         "id": "ARCANE_PORTAL",
         "name": "Arcane Portals",
         "school": "ARCANE",
-        "element": "ARCANE",
+        "archetype": "UTILITY_AOE",
         "spellKey": "ARCANE_PORTAL",
-        "tags": [
-            "UTILITY",
-            "TELEPORT"
-        ],
+        "spellType": "AoE",
+        "behaviorKey": "PortalBehavior",
+        "behaviorFile": "modules/spells/behaviors/PortalBehavior.ts",
+        "hotbarType": "ACTIVE",
         "baseStats": {
             "baseDamage": 0,
             "damagePerLevel": 0,
@@ -900,13 +1047,6 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "castTime": 0.5,
             "channelDrainPerSecond": 0,
             "maxTargets": 1
-        },
-        "behavior": {
-            "type": "MELEE",
-            "canCrit": false,
-            "pierceCount": 0,
-            "chainCount": 0,
-            "explodeOnHit": false
         },
         "targeting": {
             "targetingMode": "cursor",
@@ -1001,97 +1141,74 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "lore": "Space is merely a suggestion.",
             "categoryLabel": "Arcane Utility"
         },
-        "balance": {},
-        "vfx": [],
-        "sfx": {},
-        "hitboxes": [],
-        "icon": "/vfx/arcane_portal.png",
-        "behaviorKey": "PORTAL_BEHAVIOR",
+        "unlock": {
+            "requiredLevel": 1,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": ""
+        },
         "skeletalAnimation": {
-            "castAnimation": "cast_spell",
             "boneMotionProfiles": {
                 "arms": {
                     "recoilAmount": 0
                 }
             },
-            "handGlowColor": "#8b5cf6",
+            "handGlowOffset": 0,
             "spawnOffset": {
                 "x": 0,
                 "y": 0
             }
         }
     },
-    "LIGHTNING_ARC_LIGHTNING": {
-        "id": "LIGHTNING_ARC_LIGHTNING",
+    "LIGHTNING_ARC": {
+        "id": "LIGHTNING_ARC",
         "name": "Arc Lightning",
         "school": "LIGHTNING",
-        "spellKey": "LIGHTNING_ARC_LIGHTNING",
-        "spellType": "PROJECTILE",
+        "archetype": "CHANNEL_BEAM",
+        "spellKey": "LIGHTNING_ARC",
         "behaviorKey": "ArcLightningBehavior",
         "behaviorFile": "modules/spells/behaviors/ArcLightningBehavior.ts",
-        "hotbarType": "ACTIVE",
-
+        "hotbarType": "CHANNEL",
+        "spellType": "Beam",
         "baseStats": {
-            "baseDamage": 12,
+            "baseDamage": 15,
             "damagePerLevel": 2,
             "critChance": 0.05,
             "critMultiplier": 1.5,
             "projectileSpeed": 0,
             "projectileLifetime": 0,
             "aoeRadius": 0,
-            "beamWidth": 0,
-            "beamTickInterval": 0,
+            "beamWidth": 5,
+            "beamTickInterval": 100,
             "duration": 0,
-            "manaCost": 10,
+            "manaCost": 15,
             "cooldown": 0,
             "castTime": 0,
-            "channelDrainPerSecond": 0,
+            "channelDrainPerSecond": 15,
             "maxTargets": 3
         },
-
-        "balance": {
-            "rangeTiles": 10,
-            "maxChains": 3,
-            "chainRangeTiles": 4.75,
-            "chainFalloff": 0.75,
-            "aimConeDeg": 30,
-            "shockStacksPerHit": 1,
-            "shockStacksPerHit_ArcFocused": 2,
-            "shockedChainRangeBonus": 0.15,
-            "shock5ExtraJumpEnabled": true,
-            "hopDelaySec": 0.045,
-            "vfxTotalLifetimeFrames": 8,
-            "vfxStaggerFramesPerHop": 2,
-            "vfxType": "ARC_LIGHTNING",
-            "style": "PIXEL_ZIGZAG",
-            "colorProfile": "YELLOW_WHITE_CORE",
-            "thickness": 1,
-            "bendsMin": 2,
-            "bendsMax": 4,
-            "branchChance": 0.25
-        },
-
         "geometry": {
-            "projectileCount": 1,
+            "projectileCount": 0,
             "projectileSpreadDegrees": 0,
             "usesGravity": false,
             "arcHeight": 0,
             "aoeShape": "line",
-            "lineLength": 10,
+            "lineLength": 8,
             "lineWidth": 1,
             "orbitRadius": 0,
             "orbitDuration": 0,
             "homingStrength": 0,
             "canRicochet": false,
-            "maxRicochets": 0
+            "maxRicochets": 3
         },
         "targeting": {
             "targetingMode": "cursor",
-            "requiresLineOfSight": false,
+            "requiresLineOfSight": true,
             "canHitAllies": false,
             "canHitCaster": false,
             "maxPenetrations": 0,
-            "chainRange": 4.75,
+            "chainRange": 4,
             "chainMaxJumps": 3
         },
         "status": {
@@ -1112,7 +1229,11 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "healthCostPercent": 0,
             "chargesMax": 1,
             "chargeRegenTime": 0,
-            "tags": ["LIGHTNING", "CHAIN", "SHOCK", "HITSCAN"]
+            "tags": [
+                "lightning",
+                "channel",
+                "chain"
+            ]
         },
         "talentFlags": {
             "enableChargeCast": false,
@@ -1127,8 +1248,13 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
         },
         "socketConfig": {
             "maxCardSlots": 3,
-            "allowedRows": [1],
-            "allowedCardTypes": ["STAT_MOD", "TRIGGER"],
+            "allowedRows": [
+                1
+            ],
+            "allowedCardTypes": [
+                "Trigger",
+                "BeamModifier"
+            ],
             "defaultCards": []
         },
         "animation": {
@@ -1137,24 +1263,461 @@ export const SPELL_REGISTRY: Record<string, SpellDefinition> = {
             "highlightColor": "#FEF08A",
             "shadowColor": "#CA8A04",
             "shapeLanguage": "zigzag",
-            "castPose": "snap",
-            "motionStyle": "instant",
-            "particleTypes": ["spark"],
+            "castPose": "cast_high",
+            "motionStyle": "jitter",
+            "particleTypes": [
+                "spark"
+            ],
             "trailStyle": "electric",
             "impactStyle": "spark_burst",
-            "screenShake": "low",
-            "soundNotes": "crack",
+            "screenShake": "none",
+            "soundNotes": "electric_hum",
             "vfxCastKey": "",
             "vfxImpactKey": "",
             "vfxAoeIndicatorKey": ""
         },
         "ui": {
             "iconId": "/ui/icons/elements/lightning_arc_icon.png",
-            "shortLabel": "Arc Lightning",
+            "shortLabel": "Arc Beam",
             "description": "Chains lightning between enemies.",
             "lore": "Ride the lightning.",
             "categoryLabel": "Lightning"
         },
-        "visualLayers": []
+        "unlock": {
+            "requiredLevel": 1,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": ""
+        },
+        "visualLayers": [],
+        "skeletalAnimation": {
+            "handGlowOffset": 0
+        },
+        "data": {
+            "coneAngleDeg": 60,
+            "channelDurationFrames": 180,
+            "tickEveryFrames": 6
+        }
+    },
+    "FROST_BREATH": {
+        "id": "FROST_BREATH",
+        "name": "Frost Breath",
+        "school": "ICE",
+        "archetype": "CHANNEL_CONE",
+        "spellKey": "FROST_BREATH",
+        "behaviorKey": "FrostBreathBehavior",
+        "behaviorFile": "modules/spells/behaviors/FrostBreath.ts",
+        "hotbarType": "CHANNEL",
+        "spellType": "AoE",
+        "baseStats": {
+            "baseDamage": 2,
+            "damagePerLevel": 1,
+            "critChance": 0.05,
+            "critMultiplier": 1.5,
+            "projectileSpeed": 0,
+            "projectileLifetime": 0,
+            "aoeRadius": 8,
+            "beamWidth": 0,
+            "beamTickInterval": 0.12,
+            "duration": 180,
+            "manaCost": 8,
+            "cooldown": 6,
+            "castTime": 0,
+            "channelDrainPerSecond": 8,
+            "maxTargets": 20
+        },
+        "geometry": {
+            "projectileCount": 0,
+            "projectileSpreadDegrees": 0,
+            "usesGravity": false,
+            "arcHeight": 0,
+            "aoeShape": "cone",
+            "lineLength": 0,
+            "lineWidth": 0,
+            "orbitRadius": 0,
+            "orbitDuration": 0,
+            "homingStrength": 0,
+            "canRicochet": false,
+            "maxRicochets": 0
+        },
+        "targeting": {
+            "targetingMode": "direction",
+            "requiresLineOfSight": false,
+            "canHitAllies": false,
+            "canHitCaster": false,
+            "maxPenetrations": 0,
+            "chainRange": 0,
+            "chainMaxJumps": 0
+        },
+        "status": {
+            "appliesBurn": false,
+            "appliesSlow": true,
+            "appliesFreeze": false,
+            "appliesShock": false,
+            "appliesPoison": false,
+            "appliesRoot": false,
+            "appliesBlind": false,
+            "appliesMark": false,
+            "statusIntensity": 1,
+            "executionThreshold": 0
+        },
+        "resource": {
+            "usesMana": true,
+            "usesHealth": false,
+            "healthCostPercent": 0,
+            "chargesMax": 0,
+            "chargeRegenTime": 0,
+            "tags": [
+                "COLD",
+                "CONTROL",
+                "AOE_TICK",
+                "DOT"
+            ]
+        },
+        "talentFlags": {
+            "enableChargeCast": false,
+            "enableGapCloser": false,
+            "enableAftershock": false,
+            "enableOrbiting": false,
+            "enableDetonateOnKill": false,
+            "enableConvertAoEToField": false,
+            "enableChain": false,
+            "enablePierce": false,
+            "enableRicochet": false
+        },
+        "socketConfig": {
+            "maxCardSlots": 3,
+            "allowedRows": [
+                1,
+                2,
+                3
+            ],
+            "allowedCardTypes": [
+                "ANY"
+            ],
+            "defaultCards": []
+        },
+        "animation": {
+            "primaryColor": "#BFF8FF",
+            "secondaryColor": "#63D7FF",
+            "highlightColor": "#EAFBFF",
+            "shadowColor": "#1E7BFF",
+            "shapeLanguage": "cone",
+            "castPose": "twohands",
+            "motionStyle": "channelling",
+            "particleTypes": [
+                "frost_mist",
+                "snow_specks"
+            ],
+            "trailStyle": "none",
+            "impactStyle": "freeze",
+            "screenShake": "none",
+            "soundNotes": "soft_hiss",
+            "vfxCastKey": "frost_breath_cast",
+            "vfxImpactKey": "frost_breath_hit",
+            "vfxAoeIndicatorKey": "frost_cone"
+        },
+        "ui": {
+            "iconId": "frost_breath_icon",
+            "shortLabel": "Frost Breath",
+            "description": "Channel a cone of freezing air that Chills enemies. Chilled enemies freeze solid at 5 stacks.",
+            "lore": "The north wind in the palm of your hand.",
+            "categoryLabel": "Ice"
+        },
+        "unlock": {
+            "requiredLevel": 1,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": "none"
+        },
+        "data": {
+            "coneAngleDeg": 65,
+            "originOffset": {
+                "x": 0.5,
+                "y": -0.2
+            }
+        }
+    },
+    "FIRE_CIRCLE": {
+        "id": "FIRE_CIRCLE",
+        "name": "Fire Circle",
+        "school": "FIRE",
+        "archetype": "AOE_GROUND",
+        "spellKey": "FIRE_CIRCLE",
+        "behaviorKey": "FireCircleBehavior",
+        "behaviorFile": "modules/spells/behaviors/FireCircleBehavior.ts",
+        "hotbarType": "ACTIVE",
+        "spellType": "AoE",
+        "baseStats": {
+            "baseDamage": 5,
+            "damagePerLevel": 1,
+            "critChance": 0.05,
+            "critMultiplier": 1.5,
+            "projectileSpeed": 0,
+            "projectileLifetime": 0,
+            "aoeRadius": 5,
+            "duration": 6000,
+            "manaCost": 20,
+            "cooldown": 8,
+            "castTime": 0,
+            "maxTargets": 99,
+            "beamWidth": 0,
+            "beamTickInterval": 0,
+            "channelDrainPerSecond": 0
+        },
+        "geometry": {
+            "projectileCount": 0,
+            "projectileSpreadDegrees": 0,
+            "usesGravity": false,
+            "arcHeight": 0,
+            "aoeShape": "circle",
+            "lineLength": 0,
+            "lineWidth": 0,
+            "orbitRadius": 0,
+            "orbitDuration": 0,
+            "homingStrength": 0,
+            "canRicochet": false,
+            "maxRicochets": 0
+        },
+        "targeting": {
+            "targetingMode": "cursor",
+            "requiresLineOfSight": true,
+            "canHitAllies": false,
+            "canHitCaster": false,
+            "maxPenetrations": 0,
+            "chainRange": 0,
+            "chainMaxJumps": 0
+        },
+        "status": {
+            "appliesBurn": true,
+            "appliesSlow": false,
+            "appliesFreeze": false,
+            "appliesShock": false,
+            "appliesPoison": false,
+            "appliesRoot": false,
+            "appliesBlind": false,
+            "appliesMark": false,
+            "statusIntensity": 1,
+            "executionThreshold": 0
+        },
+        "resource": {
+            "usesMana": true,
+            "usesHealth": false,
+            "healthCostPercent": 0,
+            "chargesMax": 1,
+            "chargeRegenTime": 0,
+            "tags": [
+                "fire",
+                "aoe",
+                "ground"
+            ]
+        },
+        "talentFlags": {
+            "enableChargeCast": false,
+            "enableGapCloser": false,
+            "enableAftershock": false,
+            "enableOrbiting": false,
+            "enableDetonateOnKill": false,
+            "enableConvertAoEToField": false,
+            "enableChain": false,
+            "enablePierce": false,
+            "enableRicochet": false
+        },
+        "socketConfig": {
+            "maxCardSlots": 3,
+            "allowedRows": [
+                1
+            ],
+            "allowedCardTypes": [
+                "Trigger",
+                "AreaModifier"
+            ],
+            "defaultCards": []
+        },
+        "animation": {
+            "primaryColor": "#EF4444",
+            "secondaryColor": "#F97316",
+            "highlightColor": "#FEF08A",
+            "shadowColor": "#7F1D1D",
+            "shapeLanguage": "circle",
+            "castPose": "cast_low",
+            "motionStyle": "impact",
+            "particleTypes": [
+                "ember"
+            ],
+            "trailStyle": "none",
+            "impactStyle": "burn",
+            "screenShake": "medium",
+            "soundNotes": "fire_ignition",
+            "vfxCastKey": "",
+            "vfxImpactKey": "",
+            "vfxAoeIndicatorKey": ""
+        },
+        "ui": {
+            "iconId": "/ui/icons/elements/fire_circle_icon.png",
+            "shortLabel": "Ring of Fire",
+            "description": "Creates a ring of fire that burns enemies. Detonates at 5 stacks.",
+            "lore": "Burn, baby, burn.",
+            "categoryLabel": "Fire"
+        },
+        "unlock": {
+            "requiredLevel": 1,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": ""
+        },
+        "visualLayers": [],
+        "skeletalAnimation": {
+            "handGlowOffset": 20
+        },
+        "data": {
+            "scaleOverride": 1,
+            "rotationOffset": 0,
+            "originOffset": {
+                "x": 0,
+                "y": -1.15
+            }
+        }
+    },
+    "EARTH_STONE_SHIELD": {
+        "id": "EARTH_STONE_SHIELD",
+        "name": "Stone Shield",
+        "school": "EARTH",
+        "archetype": "BUFF",
+        "spellKey": "EARTH_STONE_SHIELD",
+        "behaviorKey": "StoneShieldBehavior",
+        "behaviorFile": "modules/spells/behaviors/StoneShieldBehavior.ts",
+        "hotbarType": "ACTIVE",
+        "spellType": "Projectile",
+        "baseStats": {
+            "baseDamage": 10,
+            "damagePerLevel": 2,
+            "critChance": 0,
+            "critMultiplier": 1,
+            "projectileSpeed": 0,
+            "projectileLifetime": 0,
+            "aoeRadius": 0,
+            "duration": 15000,
+            "manaCost": 30,
+            "cooldown": 12,
+            "castTime": 0,
+            "maxTargets": 3,
+            "beamWidth": 0,
+            "beamTickInterval": 0,
+            "channelDrainPerSecond": 0
+        },
+        "geometry": {
+            "projectileCount": 3,
+            "projectileSpreadDegrees": 360,
+            "usesGravity": false,
+            "arcHeight": 0,
+            "aoeShape": "circle",
+            "lineLength": 0,
+            "lineWidth": 0,
+            "orbitRadius": 2.5,
+            "orbitDuration": 3000,
+            "homingStrength": 0,
+            "canRicochet": false,
+            "maxRicochets": 0
+        },
+        "targeting": {
+            "targetingMode": "selfCentered",
+            "requiresLineOfSight": false,
+            "canHitAllies": false,
+            "canHitCaster": false,
+            "maxPenetrations": 0,
+            "chainRange": 0,
+            "chainMaxJumps": 0
+        },
+        "status": {
+            "appliesBurn": false,
+            "appliesSlow": false,
+            "appliesFreeze": false,
+            "appliesShock": false,
+            "appliesPoison": false,
+            "appliesRoot": false,
+            "appliesBlind": false,
+            "appliesMark": false,
+            "statusIntensity": 0,
+            "executionThreshold": 0
+        },
+        "resource": {
+            "usesMana": true,
+            "usesHealth": false,
+            "healthCostPercent": 0,
+            "chargesMax": 1,
+            "chargeRegenTime": 0,
+            "tags": [
+                "earth",
+                "defense",
+                "orbit"
+            ]
+        },
+        "talentFlags": {
+            "enableChargeCast": false,
+            "enableGapCloser": false,
+            "enableAftershock": false,
+            "enableOrbiting": true,
+            "enableDetonateOnKill": true,
+            "enableConvertAoEToField": false,
+            "enableChain": false,
+            "enablePierce": false,
+            "enableRicochet": false
+        },
+        "socketConfig": {
+            "maxCardSlots": 3,
+            "allowedRows": [
+                2
+            ],
+            "allowedCardTypes": [
+                "Duration",
+                "Defense"
+            ],
+            "defaultCards": []
+        },
+        "animation": {
+            "primaryColor": "#78716c",
+            "secondaryColor": "#57534e",
+            "highlightColor": "#a8a29e",
+            "shadowColor": "#292524",
+            "shapeLanguage": "block",
+            "castPose": "guard",
+            "motionStyle": "solid",
+            "particleTypes": [
+                "dust",
+                "pebbles"
+            ],
+            "trailStyle": "none",
+            "impactStyle": "crumble",
+            "screenShake": "small",
+            "soundNotes": "earth_rumble",
+            "vfxCastKey": "",
+            "vfxImpactKey": "",
+            "vfxAoeIndicatorKey": ""
+        },
+        "ui": {
+            "iconId": "/ui/icons/elements/stone_shield_icon.png",
+            "shortLabel": "Stone Shield",
+            "description": "Summon 3 orbiting stones that damage enemies and absorb hits.",
+            "lore": "The mountain does not bow.",
+            "categoryLabel": "Earth"
+        },
+        "unlock": {
+            "requiredLevel": 1,
+            "requiresQuestId": "",
+            "requiresSpellId": "",
+            "goldCost": 0,
+            "trainerId": ""
+        },
+        "visualLayers": [],
+        "skeletalAnimation": {
+            "handGlowOffset": 0
+        },
+        "data": {
+            "orbitSpeed": 2
+        }
     }
-}
+};

@@ -135,9 +135,9 @@ export class SpellStudioEngine {
             spawnY = Math.sin(this.session.canvas.aimAngle) * 40 - 20;
         }
 
-        const offX = this.session.spell.projectile?.spawnOffset?.x ?? 0;
-        const offY = this.session.spell.projectile?.spawnOffset?.y ?? 0;
-        const speed = this.session.spell.projectile?.speed || 10;
+        const offX = this.session.spell.data?.spawnOffset?.x ?? 0;
+        const offY = this.session.spell.data?.spawnOffset?.y ?? 0;
+        const speed = this.session.spell.baseStats?.projectileSpeed || 10;
 
         this.projectiles.push({
             id: Date.now(),
@@ -147,10 +147,8 @@ export class SpellStudioEngine {
                 x: Math.cos(this.session.canvas.aimAngle) * speed,
                 y: Math.sin(this.session.canvas.aimAngle) * speed
             },
-            gravity: this.session.spell.projectile?.gravity || 0,
-            life: this.session.spell.projectile?.maxDistance
-                ? (this.session.spell.projectile.maxDistance / speed) * 1000
-                : 2000
+            gravity: this.session.spell.geometry?.usesGravity ? 0.5 : 0,
+            life: (this.session.spell.baseStats?.projectileLifetime || 2) * 1000
         });
     }
 
@@ -246,7 +244,7 @@ export class SpellStudioEngine {
      * Calculate release pose transforms
      */
     private calculateReleasePose(): RigTransforms {
-        const releaseMs = this.session.spell.castTime * this.releaseAt;
+        const releaseMs = (this.session.spell.baseStats?.castTime || 0.5) * 1000 * this.releaseAt;
         const parts = calculatePose({
             timeMs: releaseMs,
             aimAngle: this.session.canvas.aimAngle,
@@ -290,8 +288,8 @@ export class SpellStudioEngine {
             ry = Math.sin(this.session.canvas.aimAngle) * 40 - 20;
         }
 
-        const offX = this.session.spell.projectile?.spawnOffset?.x ?? 0;
-        const offY = this.session.spell.projectile?.spawnOffset?.y ?? 0;
+        const offX = this.session.spell.data?.spawnOffset?.x ?? 0;
+        const offY = this.session.spell.data?.spawnOffset?.y ?? 0;
 
         return { x: rx + offX, y: ry + offY };
     }
@@ -382,15 +380,6 @@ export class SpellStudioEngine {
             animationId: this.session.timeline.selectedAnim
         });
 
-        // Modify parts for IK if enabled (similar to calculateCurrentPose but doing it for render)
-        // Actually renderCharacter uses the passed 'parts' for bone rotation.
-        // If we solved IK, we updated rotations in this.currentTransforms, but renderCharacter recalculates unless we pass the modified parts.
-        // We need to merge IK results into 'currentParts' before rendering.
-        // TODO: Extract IK application to a shared helper to avoid duplication.
-        // For now, let's trust calculateCurrentPose to be the source of truth for "where things are" 
-        // but 'renderCharacter' re-runs the hierarchy. 
-        // We will pass the rotations from this.currentTransforms back into 'parts' for the renderer.
-
         const renderParts = { ...currentParts };
         if (this.session.ik.enabled) {
             Object.entries(this.currentTransforms).forEach(([key, t]) => {
@@ -431,8 +420,8 @@ export class SpellStudioEngine {
             const trajectory = calculateTrajectory({
                 startPos: spawnPos,
                 angle: canvas.aimAngle,
-                speed: spell.projectile?.speed || 10,
-                gravity: spell.projectile?.gravity || 0,
+                speed: spell.baseStats?.projectileSpeed || 10,
+                gravity: spell.geometry?.usesGravity ? 0.5 : 0,
                 maxSteps: 30
             });
 

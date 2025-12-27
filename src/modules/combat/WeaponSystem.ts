@@ -1,7 +1,7 @@
 import { GameState, Player, Vector2, Enemy, MeleeAttackPhase } from '../../types';
 import { normalize } from '../../utils/isometric';
 import { soundSystem } from '../../systems/SoundSystem';
-import { SpellCallbacks } from '../spells/SpellSystem';
+import { SpellCallbacks } from '../spells/SpellBehavior';
 
 function distToSegmentSquared(p: Vector2, v: Vector2, w: Vector2): number {
     const l2 = (v.x - w.x) * (v.x - w.x) + (v.y - w.y) * (v.y - w.y);
@@ -35,7 +35,15 @@ export const WeaponSystem = {
         // 2. Block if blocked (e.g. stunned, casting hard spell)
         if (player.casting.isCasting) return;
 
-        // 3. Start New Attack (Combo 1)
+        // 3. Block if no Sword (User Request)
+        const weapon = player.equipment.MAIN_HAND;
+        // Strict check: Must have weapon AND be type SWORD
+        if (!weapon || weapon.weaponType !== 'SWORD') {
+            callbacks.addFloatingText("Need Sword!", player.pos, '#ff5555');
+            return;
+        }
+
+        // 4. Start New Attack (Combo 1)
         startAttack(player, target, 1);
     },
 
@@ -191,8 +199,8 @@ function processHitbox(state: GameState, player: Player, callbacks: SpellCallbac
 
             // Knockback
             const kbDir = normalize({ x: e.pos.x - player.pos.x, y: e.pos.y - player.pos.y });
-            e.velocity.x += kbDir.x * 2.5;
-            e.velocity.y += kbDir.y * 2.5;
+            e.velocity.x += kbDir.x * 0.25;
+            e.velocity.y += kbDir.y * 0.25;
 
             player.attack.hitTargets.push(e.id);
             if (e.hp <= 0) {

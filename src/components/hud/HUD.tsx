@@ -16,14 +16,14 @@ import { PotionBar } from './PotionBar';
 import { ActionDock } from './ActionDock';
 import { MenuRack } from './MenuRack';
 import { ShopButton } from './ShopButton';
-import { LevelCounter } from './LevelCounter';
 import { InventoryModal } from './modals/InventoryModal';
 import { ShopModal } from './modals/ShopModal';
-import { SpellbookModal } from './modals/SpellbookModal';
-import { SpellCraftingModal } from './modals/SpellCraftingModal';
+import { SpellStudioModal } from './modals/SpellStudioModal';
 import { StatsModal } from './modals/StatsModal';
+import { LevelCounter } from './LevelCounter';
 import { Minimap } from './Minimap';
 import { CardDebugOverlay } from '../../modules/dev/CardDebugOverlay';
+import { BuffBar } from './BuffBar';
 
 interface HUDProps {
     player: Player;
@@ -32,7 +32,8 @@ interface HUDProps {
     onRestart: () => void;
     onResume: () => void;
     onQuit: () => void;
-    onUpgradeSpellTalent: (element: SpellElement, talentKey: string) => void;
+    onUpgradeSpellPoints?: (points: number) => void;
+    onUpgradeTalent: (spellId: string, talentId: string) => void;
     onUpgradeBaseStat: (stat: 'vitality' | 'power' | 'haste' | 'swiftness') => void;
     onUsePotion: (type: 'health' | 'mana' | 'speed') => void;
     onEquip: (item: EquipmentItem) => void;
@@ -43,9 +44,10 @@ interface HUDProps {
     onSelectSpell: (spell: SpellType) => void;
     onToggleMount: () => void;
     onUnlockSpell: (spell: SpellType) => void;
+    onUpgradeSpell?: (spell: SpellType) => void;
+    onInjectDust?: (spell: SpellType, amount: number) => void;
 
-    onEquipCard: (spell: SpellType, card: import('../../modules/cards/types').CardInstance) => void;
-    onUnequipCard: (spell: SpellType, cardInstanceId: string) => void;
+
     isPaused: boolean;
     activeQuest: Quest;
     shopItems: ShopItem[];
@@ -55,8 +57,8 @@ interface HUDProps {
 }
 
 export const HUD: React.FC<HUDProps> = ({
-    player, score, gameOver, onRestart, onResume, onQuit, onUpgradeSpellTalent, onUpgradeBaseStat, onUsePotion,
-    onEquip, onUnequip, onBuyItem, onAssignHotbarSlot, onCastSpell, onSelectSpell, onToggleMount, onUnlockSpell, onEquipCard, onUnequipCard, isPaused, activeQuest,
+    player, score, gameOver, onRestart, onResume, onQuit, onUpgradeTalent, onUpgradeBaseStat, onUsePotion,
+    onEquip, onUnequip, onBuyItem, onAssignHotbarSlot, onCastSpell, onSelectSpell, onToggleMount, onUnlockSpell, onUpgradeSpell, onInjectDust, isPaused, activeQuest,
     shopItems, shopResetTimer, gameStarted, minimapData
 }) => {
     // Visibility States
@@ -124,26 +126,29 @@ export const HUD: React.FC<HUDProps> = ({
         return () => clearTimeout(timer);
     }, [positions]);
 
-    const toggleWindow = (window: 'spells' | 'stats' | 'inventory' | 'spellbook' | 'shop') => {
+    const toggleWindow = (window: 'spells' | 'stats' | 'inventory' | 'shop' | 'spellbook') => {
+        // 'spells' and 'spellbook' now both open the Studio
+        const targetStudio = window === 'spells' || window === 'spellbook';
+        const isStudioOpen = showSpells || showSpellbook;
+
         const isOpen =
-            (window === 'spells' && showSpells) ||
+            (targetStudio && isStudioOpen) ||
             (window === 'stats' && showStats) ||
             (window === 'inventory' && showInventory) ||
-            (window === 'spellbook' && showSpellbook) ||
             (window === 'shop' && showShop);
 
         setShowSpells(false);
+        setShowSpellbook(false);
         setShowStats(false);
         setShowInventory(false);
-        setShowSpellbook(false);
         setShowShop(false);
 
         if (!isOpen) {
             switch (window) {
-                case 'spells': setShowSpells(true); break;
+                case 'spells':
+                case 'spellbook': setShowSpells(true); break;
                 case 'stats': setShowStats(true); break;
                 case 'inventory': setShowInventory(true); break;
-                case 'spellbook': setShowSpellbook(true); break;
                 case 'shop': setShowShop(true); break;
             }
         }
@@ -194,7 +199,7 @@ export const HUD: React.FC<HUDProps> = ({
 
     if (!gameStarted) return null;
 
-    const inSafeZone = getDistance(player.pos, HEARTHSTONE_POS) < SAFE_ZONE_RADIUS;
+
 
     // Button Components for Pause Menu
     const PauseButton = ({ onClick, children, variant = 'default' }: { onClick: () => void, children: React.ReactNode, variant?: 'default' | 'danger' | 'secondary' }) => (
@@ -222,6 +227,7 @@ export const HUD: React.FC<HUDProps> = ({
     return (
         <div className={`absolute inset-0 z-10 overflow-hidden ${isPaused ? 'pointer-events-auto' : 'pointer-events-none'}`}>
             <CardDebugOverlay />
+            <BuffBar player={player} />
 
             {isEditMode && (
                 <div className="absolute top-10 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white px-4 py-2 font-bold z-50 animate-pulse border-2 border-white pointer-events-auto text-center shadow-lg rounded">
@@ -251,30 +257,14 @@ export const HUD: React.FC<HUDProps> = ({
                 </DraggableItem>
             )}
 
-            {showSpellbook && (
-                <DraggableItem id="spellbook" position={positions.spellbook} onMove={handleMove} onScale={handleScale} isLocked={!isEditMode}>
-                    <SpellbookModal
-                        player={player}
-                        onClose={() => setShowSpellbook(false)}
-                        onUnlockSpell={onUnlockSpell}
-                        setDraggedSpell={setDraggedSpell}
-                        setDraggedFromHotbarIndex={setDraggedFromHotbarIndex}
-                        setDragOverHotbarIndex={setDragOverHotbarIndex}
-                        draggedFromHotbarIndex={draggedFromHotbarIndex}
-                        onClearHotbarSlot={(idx) => {
-                            onAssignHotbarSlot(idx, null);
-                        }}
-                        isPaused={isPaused}
-                    />
-                </DraggableItem>
-            )}
-
-            {showSpells && (
-                <SpellCraftingModal
+            {(showSpells || showSpellbook) && (
+                <SpellStudioModal
                     player={player}
-                    onEquipCard={onEquipCard}
-                    onUnequipCard={onUnequipCard}
-                    onClose={() => setShowSpells(false)}
+                    onClose={() => { setShowSpells(false); setShowSpellbook(false); }}
+                    onUpgradeTalent={onUpgradeTalent}
+                    onUpgradeSpell={onUpgradeSpell}
+                    onInjectDust={onInjectDust}
+                    onAssignHotbarSlot={onAssignHotbarSlot}
                     isPaused={isPaused}
                 />
             )}
@@ -385,7 +375,6 @@ export const HUD: React.FC<HUDProps> = ({
                     onAssignHotbarSlot={onAssignHotbarSlot}
                     onSelectSpell={onSelectSpell}
                     setTrashHover={setTrashHover}
-                    inSafeZone={inSafeZone}
                 />
             </DraggableItem>
 

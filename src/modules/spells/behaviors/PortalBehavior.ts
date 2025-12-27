@@ -1,6 +1,8 @@
-import { GameState, SpellDefinition, Player, Vector2 } from '../../../types';
-import { SpellCallbacks } from '../../spells/SpellSystem';
+import { GameState, Player, Vector2 } from '../../../types';
+// Updated import
+import { SpellCallbacks } from '../SpellBehavior';
 import { BEHAVIOR_REGISTRY } from '../BehaviorRegistry';
+import { SpellDefinition } from '../SpellRegistry';
 
 export const PortalBehavior = {
     onCast: (state: GameState, config: SpellDefinition, player: Player, target: Vector2, callbacks: SpellCallbacks) => {

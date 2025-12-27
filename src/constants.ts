@@ -5,6 +5,11 @@ export const MAP_SIZE = 20; // Used for spawning radius bounds
 
 export const DEBUG_MODE = false;
 
+export const FEATURE_FLAGS = {
+  USE_TALENTS: true,
+  USE_UNIFIED_MODIFIERS: true
+};
+
 export const HOUSE_POS = { x: -19.8, y: -13.7 };
 export const HOUSE_RADIUS = 12.0; // Clears the 10x10 area + massive buffer
 
@@ -156,13 +161,13 @@ export const BASE_STAT_CONFIG = {
 
 export const CLASS_CONFIG: any = {
   MAGE: {
-    hp: 100, mana: 120, spell: 'FIRE', stats: { vitality: 0, power: 3, haste: 0, swiftness: 0 }, emoji: '🧙‍♂️', desc: "High Magic Power"
+    hp: 100, mana: 120, spell: 'FIRE_FIREBALL', stats: { vitality: 0, power: 3, haste: 0, swiftness: 0 }, emoji: '🧙‍♂️', desc: "High Magic Power"
   },
   WARRIOR: {
-    hp: 150, mana: 40, spell: 'EARTH', stats: { vitality: 4, power: 0, haste: 0, swiftness: 0 }, emoji: '🛡️', desc: "Tanky & Strong"
+    hp: 150, mana: 40, spell: 'EARTH_STONE_SHOT', stats: { vitality: 4, power: 0, haste: 0, swiftness: 0 }, emoji: '🛡️', desc: "Tanky & Strong"
   },
   RANGER: {
-    hp: 120, mana: 80, spell: 'WIND', stats: { vitality: 1, power: 1, haste: 0, swiftness: 2 }, emoji: '🧝', desc: "Fast & Agile"
+    hp: 120, mana: 80, spell: 'WIND_SLASH', stats: { vitality: 1, power: 1, haste: 0, swiftness: 2 }, emoji: '🧝', desc: "Fast & Agile"
   }
 };
 
@@ -255,7 +260,9 @@ export const IMPACT_PUFF_CONFIG: Record<string, { emoji: string, color: string }
   EARTH: { emoji: '🪨', color: '#8b4513' },
   ARCANE_EXPLOSION: { emoji: '✨', color: '#9333ea' },
   BOMB: { emoji: '💥', color: '#000000' },
-  ROCK_AURA: { emoji: '🪨', color: '#8b4513' }
+  ROCK_AURA: { emoji: '🪨', color: '#8b4513' },
+  GRAVITY_WELL: { emoji: '🌌', color: '#8b5cf6' },
+  ICE_BLIZZARD: { emoji: '❄️', color: '#00BFFF' }
 };
 
 export const SPELL_UNLOCK_ORDER = [

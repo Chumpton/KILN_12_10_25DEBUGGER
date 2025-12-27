@@ -179,23 +179,13 @@ export const spawnEnemy = (state: GameState, difficultyFactor: number, callbacks
     let validSpawn = false;
     let attempts = 0;
 
-    while (!validSpawn && attempts < 10) {
-        const angle = Math.random() * Math.PI * 2;
-        // Increase distance to account for larger safe zone (SAFE_ZONE_RADIUS + 7 buffer)
-        const distance = 28;
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 28;
 
-        spawnX = state.player.pos.x + Math.cos(angle) * distance;
-        spawnY = state.player.pos.y + Math.sin(angle) * distance;
+    spawnX = state.player.pos.x + Math.cos(angle) * distance;
+    spawnY = state.player.pos.y + Math.sin(angle) * distance;
 
-        // Check distance from Safe Zone center
-        const distToSafeZone = getDistance({ x: spawnX, y: spawnY }, HEARTHSTONE_POS);
-
-        // Ensure spawn is outside safe zone (plus a small buffer)
-        if (distToSafeZone > (SAFE_ZONE_RADIUS + 2)) {
-            validSpawn = true;
-        }
-        attempts++;
-    }
+    validSpawn = true;
 
     if (!validSpawn) return; // Skip spawn frame if no valid pos found
 

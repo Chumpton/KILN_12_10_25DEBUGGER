@@ -3,7 +3,7 @@ import { SpellBehavior } from '../SpellBehavior';
 import { GameState, SpellType } from '../../../types';
 import { calculateSpellDamage } from '../../../utils/combat';
 import { soundSystem } from '../../../systems/SoundSystem';
-import { SpellCallbacks } from '../SpellSystem';
+import { SpellCallbacks } from '../SpellBehavior';
 
 export const DETONATE_BEHAVIOR: SpellBehavior = {
     onCast: (state: GameState, spell: any, player: any, targetPos: any, callbacks: SpellCallbacks) => {
@@ -28,7 +28,7 @@ export const DETONATE_BEHAVIOR: SpellBehavior = {
 
                 callbacks.addFloatingText(`${Math.round(totalDamage)}!`, e.pos, '#ff4500');
                 callbacks.createImpactPuff(e.pos, SpellType.FIRE_DETONATE);
-                callbacks.createExplosion(e.pos, 2.5, 0, '#ff4500'); // Big visual boom
+                callbacks.createExplosion(e.pos, 2.5, 0, '#ff4500', undefined, 0.4); // Big visual boom
 
                 // Visual Icon Flip
                 if (callbacks.createVisualEffect) {
@@ -47,7 +47,7 @@ export const DETONATE_BEHAVIOR: SpellBehavior = {
                 const kDy = e.pos.y - player.pos.y;
                 const kDist = Math.sqrt(kDx * kDx + kDy * kDy);
                 if (kDist > 0) {
-                    const force = 0.5;
+                    const force = 0.025; // Reduced by 80%
                     e.velocity.x += (kDx / kDist) * force;
                     e.velocity.y += (kDy / kDist) * force;
                 }

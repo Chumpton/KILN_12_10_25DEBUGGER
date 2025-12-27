@@ -2,7 +2,8 @@ import { SpellBehavior } from '../SpellBehavior';
 import { GameState, Player, SpellType, Vector2 } from '../../../types';
 import { calculateSpellDamage } from '../../../utils/combat';
 import { SPELL_REGISTRY } from '../SpellRegistry';
-import { SpellCallbacks } from '../SpellSystem';
+// Fixed Import
+import { SpellCallbacks } from '../SpellBehavior';
 import { soundSystem } from '../../../systems/SoundSystem';
 import { drawPixelSprite } from '../../../utils/graphics';
 import { toScreen } from '../../../utils/isometric';

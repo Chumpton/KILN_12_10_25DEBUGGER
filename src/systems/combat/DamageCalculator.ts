@@ -12,7 +12,10 @@ export const calculateSpellDamage = (player: Player, spellType: SpellType): numb
         if (equip?.stats.damage) equipDamage += equip.stats.damage;
     });
 
-    const rawDmg = (config.baseStats?.baseDamage || 0) + (player.level * 0.5) + equipDamage + powerDmg;
+    const spellLevel = player.spellUpgrades?.[spellType] || 1;
+    const spellLevelBonus = (spellLevel - 1) * (config.baseStats?.damagePerLevel || 5);
+
+    const rawDmg = (config.baseStats?.baseDamage || 0) + spellLevelBonus + (player.level * 0.5) + equipDamage + powerDmg;
     if (isNaN(rawDmg)) {
         console.error('[DamageCalculator] RawDmg NaN', { configBase: config.baseDamage, level: player.level, equipDamage, powerDmg, stats: player.baseStats });
         return 1;

@@ -1,8 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Player, SpellType } from '../../../types';
-import { CARD_REGISTRY } from '../../../modules/cards/CardRegistry';
-import { CardDefinition, CardInstance, CardType } from '../../../modules/cards/types';
 import { SPELL_REGISTRY } from '../../../modules/spells/SpellRegistry';
+import { TALENT_REGISTRY } from '../../../modules/talents/TalentRegistry';
 
 // --- VISUAL ASSETS ---
 const ELEMENT_ICONS: Record<string, string> = {
@@ -17,383 +16,366 @@ const ELEMENT_ICONS: Record<string, string> = {
 // Generate list from Registry to avoid drift
 const SPELL_LIST = Object.values(SPELL_REGISTRY).map(config => ({
     id: config.id,
-    name: config.name,
+    name: config.ui?.shortLabel || config.name,
     school: config.school,
     type: config.spellType,
-    icon: config.icon || ELEMENT_ICONS[config.school] || '',
-    description: config.description
+    icon: config.ui?.iconId || ELEMENT_ICONS[config.school] || '',
+    description: config.ui?.description || ''
 }));
 
 interface SpellCraftingModalProps {
     player: Player;
-    onEquipCard: (spell: SpellType, card: CardInstance) => void;
-    onUnequipCard: (spell: SpellType, cardInstanceId: string) => void;
     onClose: () => void;
+    onUpgradeSpell: (spell: SpellType) => void;
+    onUpgradeTalent: (spell: SpellType, talentId: string) => void;
+    selectedSpellId?: SpellType | null;
     isPaused: boolean;
 }
 
-// FIX 3 & 7: Robust Filter Mapping
-const TYPE_MAP: Record<string, CardType[] | null> = {
-    'ALL': null,
-    'SHAPE': ['STAT_MOD', 'TRANSFORM'], // Mapping Geometry/Transforms
-    'BEHAVIOR': ['FLAG', 'BUFF'],
-    'TRIGGER': ['TRIGGER'],
-    'HYBRID': ['HYBRID']
-};
+export const SpellCraftingModal: React.FC<SpellCraftingModalProps> = ({
+    player, onClose, onUpgradeSpell, onUpgradeTalent, selectedSpellId: initialSpellId
+}) => {
+    // We can also infer selectedSpell from props or maintain internal state
+    const [selectedSpellId, setSelectedSpellId] = useState<SpellType>(initialSpellId || SpellType.FIRE_FIREBALL);
 
-const MAX_SLOTS = 5;
+    // --- SANITIZATION (FORCE FIX) ---
+    useEffect(() => {
+        // Force fix bad data states for the user session
+        if (typeof player.magicDust !== 'number') {
+            player.magicDust = 0;
+            console.warn('[SpellCrafting] Resetting Dust to 0');
+        }
+        if (!player.spellUpgrades) {
+            player.spellUpgrades = {};
+        }
+        console.log(`[SpellCraftingModal] Debug: Dust=${player.magicDust}, Spells=${JSON.stringify(player.spellUpgrades)}`);
+    }, [player]);
 
-export const SpellCraftingModal: React.FC<SpellCraftingModalProps> = ({ player, onClose, onEquipCard, onUnequipCard }) => {
-    const [selectedSpellId, setSelectedSpellId] = useState<string>('fireball');
-    const [filter, setFilter] = useState<string>('ALL');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+    // Update internal state if prop changes
+    useEffect(() => {
+        if (initialSpellId) setSelectedSpellId(initialSpellId);
+    }, [initialSpellId]);
 
     // Ensure selected spell exists in registry
     const selectedSpell = useMemo(() => SPELL_LIST.find(s => s.id === selectedSpellId) || SPELL_LIST[0], [selectedSpellId]);
 
-    // Derived State: Currently Equipped Cards
-    const equippedCards = useMemo(() => {
-        return (player.equippedCards && player.equippedCards[selectedSpellId as SpellType]) || [];
-    }, [player.equippedCards, selectedSpellId]);
-
-    // Library Cards
-    const libraryCards = useMemo(() => {
-        const allowed = TYPE_MAP[filter];
-        return Object.values(CARD_REGISTRY)
-            .filter(def => {
-                if (allowed && !allowed.includes(def.type)) return false;
-                if (searchTerm && !def.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-                return true;
-            })
-            .sort((a, b) => {
-                const rarityOrder = { MYTHIC: 0, LEGENDARY: 1, EPIC: 2, RARE: 3, UNCOMMON: 4, COMMON: 5 };
-                if (rarityOrder[a.rarity] !== rarityOrder[b.rarity]) return rarityOrder[a.rarity] - rarityOrder[b.rarity];
-                return a.name.localeCompare(b.name);
-            });
-    }, [filter, searchTerm]);
-
-    // Handlers
-    const handleDrop = (cardId: string, slotIndex: number) => {
-        // FIX 4 & 5: Slot Specific Equipping & Max Guard
-        const existingAtSlot = equippedCards.find(c => c.gridX === slotIndex);
-        if (existingAtSlot) {
-            onUnequipCard(selectedSpellId as SpellType, existingAtSlot.instanceId);
-        } else if (equippedCards.length >= MAX_SLOTS && !existingAtSlot) {
-            // Check overall limit if not replacing
-            return;
-        }
-
-        const newInstance: CardInstance = {
-            instanceId: `inst_${cardId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            cardId: cardId,
-            gridX: slotIndex
-        };
-        onEquipCard(selectedSpellId as SpellType, newInstance);
-        setDraggedCardId(null);
+    // --- CATEGORY LOGIC ---
+    const TALENT_CATEGORIES: Record<string, string> = {
+        'scattercast': 'PROJECTILE',
+        'thermal_drift': 'PROJECTILE',
+        'living_fireball': 'PROJECTILE',
+        'scorched_path': 'AREA',
+        'delayed_detonation': 'AREA',
+        'chain_explosion': 'AREA',
+        'inferno_presence': 'AREA',
+        'glass_cannon': 'SPECIAL',
+        'run_and_gun': 'SPECIAL',
+        'heartburst': 'SPECIAL',
+        'default': 'SPECIAL'
     };
 
-    const handleRemove = (instanceId: string) => {
-        onUnequipCard(selectedSpellId as SpellType, instanceId);
-    };
+    const getCategory = (talentId: string) => TALENT_CATEGORIES[talentId] || 'SPECIAL';
 
-    const handleDragStart = (e: React.DragEvent, cardId: string) => {
-        e.dataTransfer.setData('cardId', cardId);
-        setDraggedCardId(cardId);
-    };
+    const [activeTab, setActiveTab] = useState<'PROJECTILE' | 'AREA' | 'SPECIAL'>('PROJECTILE');
 
-    const handleDragEnd = () => {
-        setDraggedCardId(null);
-    }
+    // --- TALENT FILTERING ---
+    const allTalents = TALENT_REGISTRY[selectedSpellId] || [];
+    const currentAllocations = player.spellTalents?.[selectedSpellId] || {};
+
+    // Split into MAJOR (Big Slots) and AFFIXES (Small Chips)
+    const majorTalents = allTalents.filter(t => !t.id.startsWith('affix_'));
+    const affixTalents = allTalents.filter(t => t.id.startsWith('affix_'));
+
+    // Active Majors
+    const activeMajorIds = Object.keys(currentAllocations).filter(id =>
+        currentAllocations[id] > 0 && !id.startsWith('affix_')
+    );
+
+    // Active Affixes
+    // Actually, Affixes are also bought/upgraded.
+    // The user wants "Affix Chips".
+    // Let's list ALL available Affixes in the bottom section, and highlight active ones?
+    // Or just show them as a list of buttons that you can buy/upgrade.
+
+    // Filter Major for Drawer
+    const availableMajors = majorTalents.filter(t => !activeMajorIds.includes(t.id));
+    const filteredAvailableMajors = availableMajors.filter(t => getCategory(t.id) === activeTab);
+
+    // Stats
+    const currentLevel = player.spellUpgrades?.[selectedSpellId] || 1;
+    const baseDmg = selectedSpell.baseStats.baseDamage + (currentLevel * selectedSpell.baseStats.damagePerLevel);
+    const cooldown = selectedSpell.baseStats.cooldown;
+    const radius = selectedSpell.baseStats.aoeRadius;
+
+    // Dust
+    const dust = player.magicDust || 0;
+    const levelCost = currentLevel * 100;
+
+    // --- RENDER HELPERS ---
+    const renderTalentGridItem = (talent: any, isAffix: boolean) => {
+        const currentRank = currentAllocations[talent.id] || 0;
+        const isActive = activeMajorIds.includes(talent.id) || (isAffix && currentRank > 0);
+        const isMax = currentRank >= talent.maxRank;
+
+        // Cost
+        const baseCost = isAffix ? 50 : 200;
+        const upgradeCost = baseCost + (currentRank * (isAffix ? 25 : 150));
+        const canAfford = dust >= upgradeCost;
+        const isLocked = !isActive && activeMajorIds.length >= 3 && !isAffix;
+
+        return (
+            <button
+                key={talent.id}
+                onClick={() => (!isLocked || isActive) && canAfford && !isMax && onUpgradeTalent(selectedSpellId, talent.id)}
+                disabled={(!isActive && isLocked) || !canAfford || isMax}
+                className={`
+                    relative group flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all
+                    ${isActive
+                        ? 'bg-[#1c1917] border-[#d4b06c] shadow-[0_0_15px_rgba(212,176,108,0.15)]'
+                        : 'bg-[#0c0a09] border-[#292524] hover:border-[#44403c]'}
+                    ${isLocked ? 'opacity-40 grayscale cursor-not-allowed' : ''}
+                    ${!canAfford && !isMax ? 'opacity-70' : ''}
+                    h-32 w-full
+                `}
+            >
+                {/* Icon */}
+                <div className={`text-3xl mb-3 transition-transform group-hover:scale-110 ${isActive ? 'text-[#e5d5ac]' : 'text-[#57534e]'}`}>
+                    {talent.icon}
+                </div>
+
+                {/* Rank Pips */}
+                <div className="flex gap-1 mb-2">
+                    {Array.from({ length: talent.maxRank }).map((_, i) => (
+                        <div
+                            key={i}
+                            className={`w-1.5 h-1.5 rounded-full ${i < currentRank ? (isActive ? 'bg-[#d4b06c]' : 'bg-[#57534e]') : 'bg-[#1c1917] border border-[#292524]'}`}
+                        />
+                    ))}
+                </div>
+
+                {/* Name */}
+                <div className={`text-[10px] font-bold uppercase tracking-wider text-center leading-tight ${isActive ? 'text-[#e5d5ac]' : 'text-[#78716c]'}`}>
+                    {talent.name}
+                </div>
+
+                {/* Hover Cost / Info */}
+                {!isMax && (
+                    <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl z-10 backdrop-blur-sm">
+                        <div className="text-[#d4b06c] font-black text-lg">{upgradeCost}</div>
+                        <div className="text-[9px] text-[#78716c] font-bold uppercase tracking-widest">Dust</div>
+                    </div>
+                )}
+            </button>
+        );
+    };
 
     return (
-        <div className="pointer-events-auto z-40 fixed inset-0 flex items-center justify-center bg-black/90 backdrop-blur-md font-sans select-none">
-            <div className="w-[1200px] h-[800px] bg-[#0c0a09] border border-[#44403c] rounded-xl flex shadow-2xl overflow-hidden relative text-[#e7e5e4]">
+        <div className="pointer-events-auto z-50 fixed inset-0 flex items-center justify-center bg-black/95 backdrop-blur-sm font-sans select-none">
+            {/* Main Window Frame */}
+            <div className="w-[1200px] h-[850px] bg-[#050403] border border-[#292524] rounded-sm flex shadow-2xl relative overflow-hidden text-[#e7e5e4]">
 
-                {/* === LEFT COLUMN: SPELL & LOADOUT (40%) === */}
-                <div className="w-[40%] bg-[#1c1917] border-r border-[#44403c] flex flex-col relative">
-
-                    {/* Header: Spell Selector */}
-                    <div className="p-6 border-b border-[#44403c] bg-[#14120f]">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-[#d4b06c] font-black uppercase tracking-widest text-lg">Spell Crafting</h2>
-                        </div>
-
-                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                            {SPELL_LIST.map(spell => (
-                                <button
-                                    key={spell.id}
-                                    onClick={() => setSelectedSpellId(spell.id)}
-                                    className={`
-                                        flex-shrink-0 w-12 h-12 rounded border-2 transition-all flex items-center justify-center relative group
-                                        ${selectedSpellId === spell.id
-                                            ? 'border-[#d4b06c] bg-[#292524] shadow-[0_0_15px_rgba(212,176,108,0.2)]'
-                                            : 'border-[#44403c] bg-[#0f0e0d] hover:border-[#78716c]'}
-                                    `}
-                                >
-                                    {spell.icon ? <img src={spell.icon} className="w-8 h-8 object-contain" alt={spell.name} /> : <span className="text-xl">?</span>}
-                                    {/* Tooltip */}
-                                    <div className="absolute top-14 bg-black px-3 py-1 text-xs font-bold rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 pointer-events-none transition-opacity border border-[#44403c] shadow-xl">
-                                        {spell.name}
-                                    </div>
-                                </button>
-                            ))}
+                {/* === SIDEBAR === */}
+                <div className="w-[280px] bg-[#0c0a09] border-r border-[#292524] flex flex-col">
+                    <div className="p-6 border-b border-[#292524]">
+                        <h2 className="text-[#a89068] font-black uppercase tracking-[0.2em] text-xs mb-4">Spell Mastery</h2>
+                        {/* Search Placeholder */}
+                        <div className="bg-[#14120f] border border-[#292524] rounded px-3 py-2 text-xs text-[#57534e] flex items-center gap-2">
+                            <span>🔍</span>
+                            <span>Search Spells...</span>
                         </div>
                     </div>
 
-                    {/* Active Spell Visualization */}
-                    <div className="p-8 flex flex-col items-center flex-1 overflow-y-auto bg-[url('/assets/ui/noise.png')] opacity-95 relative">
-                        {/* FIX 6: Animated Spell Identity */}
-                        <div className="relative mb-6 group">
-                            <div className="w-32 h-32 rounded-full border-4 border-[#d4b06c]/30 flex items-center justify-center bg-[#0c0a09] shadow-[0_0_40px_rgba(212,176,108,0.05)] relative z-10">
-                                {selectedSpell.icon ? <img src={selectedSpell.icon} className="w-20 h-20 object-contain drop-shadow-md" alt={selectedSpell.name} /> : <div className="text-4xl text-[#44403c]">?</div>}
-                            </div>
-                            {/* Pulse Animation */}
-                            <div className="absolute inset-0 rounded-full border border-[#d4b06c]/20 animate-[ping_3s_ease-in-out_infinite]" />
-                            <div className="absolute inset-[-10px] rounded-full border border-[#d4b06c]/10 animate-[pulse_4s_ease-in-out_infinite]" />
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                        {SPELL_LIST.filter(spell => player.knownSpells?.includes(spell.id as SpellType)).map(spell => {
+                            const isSelected = selectedSpellId === spell.id;
+                            const upgradeLvl = player.spellUpgrades?.[spell.id] || 1;
+
+                            return (
+                                <button
+                                    key={spell.id}
+                                    onClick={() => setSelectedSpellId(spell.id as SpellType)}
+                                    className={`
+                                        w-full p-3 rounded flex items-center gap-4 transition-all border-l-2
+                                        ${isSelected
+                                            ? 'bg-[#1c1917] border-[#d4b06c] text-[#e5d5ac]'
+                                            : 'bg-transparent border-transparent text-[#57534e] hover:bg-[#14120f] hover:text-[#a8a29e]'}
+                                    `}
+                                >
+                                    <div className={`
+                                        w-10 h-10 rounded-lg flex items-center justify-center text-lg shadow-inner
+                                        ${isSelected ? 'bg-[#0c0a09] shadow-black/50' : 'bg-[#14120f]'}
+                                    `}>
+                                        {spell.icon ? <img src={spell.icon} className="w-6 h-6 object-contain opacity-80" /> : "✨"}
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                        <div className="font-bold text-sm uppercase tracking-wide">{spell.name}</div>
+                                        {/* Status Line */}
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className={`text-[9px] font-mono ${isSelected ? 'text-[#d4b06c]' : 'text-[#44403c]'}`}>LV {upgradeLvl}</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* === MAIN CONTENT === */}
+                <div className="flex-1 flex flex-col bg-[#080706] relative bg-[url('/assets/ui/noise.png')] bg-opacity-5">
+
+                    {/* Header Bar */}
+                    <div className="h-14 flex items-center justify-between px-8 border-b border-[#292524]">
+                        <div className="flex items-center gap-4">
+                            <span className="text-[#a89068] font-bold text-xs tracking-widest">MAGIC DUST <span className="text-[#ffdb73] text-sm ml-1">{dust}</span></span>
+                            <span className="text-[#292524]">|</span>
+                            {/* MARKER V2 */}
+                            <span className="text-[#57534e] font-bold text-xs tracking-widest uppercase">{selectedSpell.school} FORGE V2</span>
                         </div>
+                        <button onClick={onClose} className="text-[#57534e] hover:text-[#e5d5ac] text-xs font-bold tracking-widest transition-colors">CLOSE</button>
+                    </div>
 
-                        <h1 className="text-3xl font-black text-[#e5d5ac] uppercase tracking-wider mb-1 drop-shadow-lg">{selectedSpell.name}</h1>
-                        <div className="text-[#a89068] text-xs font-bold uppercase tracking-widest mb-8">{selectedSpell.type} • {selectedSpell.school}</div>
+                    {/* Scrollable Area */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-10 flex flex-col items-center">
 
-                        {/* Slot Container */}
-                        <div className="w-full flex flex-col gap-3">
-                            <div className="flex justify-between items-end mb-2 px-1">
-                                <div className="text-[#78716c] text-[10px] font-bold uppercase tracking-wider">Modifications</div>
-                                {/* FIX 5: Power Bar */}
-                                <div className="flex gap-1">
-                                    {Array.from({ length: MAX_SLOTS }).map((_, i) => (
-                                        <div key={i} className={`w-2 h-2 rounded-full ${i < equippedCards.length ? 'bg-[#d4b06c] shadow-[0_0_5px_#d4b06c]' : 'bg-[#292524]'}`} />
-                                    ))}
+                        {/* 1. HERO SECTION (Circle + Stats) */}
+                        <div className="flex flex-col items-center mb-12 w-full max-w-2xl">
+
+                            {/* Circle */}
+                            <div className="relative w-32 h-32 mb-6 group">
+                                {/* Rings */}
+                                <div className="absolute inset-0 rounded-full border-2 border-[#292524]"></div>
+                                <div className="absolute inset-0 rounded-full border-2 border-[#d4b06c] border-t-transparent animate-spin-slow opacity-20"></div>
+
+                                {/* Inner Content */}
+                                <div className="absolute inset-2 bg-[#0c0a09] rounded-full flex flex-col items-center justify-center shadow-lg border border-[#292524]">
+                                    {selectedSpell.icon ? <img src={selectedSpell.icon} className="w-12 h-12 object-contain mb-1" /> : <span className="text-3xl">🔮</span>}
+                                </div>
+
+                                {/* Level Badge */}
+                                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-[#d4b06c] text-[#0c0a09] px-3 py-1 rounded text-xs font-black uppercase tracking-wider shadow-lg border-2 border-[#0c0a09]">
+                                    LV {currentLevel}
                                 </div>
                             </div>
 
-                            {/* Slots */}
-                            {Array.from({ length: MAX_SLOTS }).map((_, idx) => {
-                                // Prefer gridX, fallback to index for robustness if not yet migrated
-                                const card = equippedCards.find(c => c.gridX === idx) || (equippedCards[idx]?.gridX === undefined ? equippedCards[idx] : undefined);
-
-                                return (
-                                    <EquippedSlot
-                                        key={idx}
-                                        card={card}
-                                        index={idx}
-                                        onRemove={handleRemove}
-                                        onDrop={(cid) => handleDrop(cid, idx)}
-                                        isDragging={!!draggedCardId}
-                                    />
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Footer Info */}
-                    <div className="p-4 bg-[#14120f] border-t border-[#44403c] text-[10px] text-[#57534e] text-center font-mono">
-                        MODIFICATIONS ALTER MANA COST & CAST TIME
-                    </div>
-                </div>
-
-                {/* === RIGHT COLUMN: REGISTRY (60%) === */}
-                <div className="w-[60%] bg-[#0c0a09] flex flex-col relative">
-
-                    {/* Header / Filter */}
-                    <div className="h-16 border-b border-[#44403c] flex items-center px-6 gap-4 bg-[#14120f]">
-                        <div className="text-[#a89068] font-bold text-sm uppercase tracking-widest mr-4">Registry</div>
-
-                        {/* Search */}
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="SEARCH..."
-                            className="bg-[#1c1917] border border-[#292524] rounded px-3 py-1.5 text-xs text-[#e7e5e4] focus:border-[#d4b06c] focus:outline-none w-48 font-mono placeholder-[#44403c]"
-                        />
-
-                        {/* FIX 7: Expanded Filters */}
-                        <div className="flex gap-1 ml-auto">
-                            <FilterBtn label="ALL" active={filter === 'ALL'} onClick={() => setFilter('ALL')} />
-                            <FilterBtn label="SHAPE" active={filter === 'SHAPE'} onClick={() => setFilter('SHAPE')} />
-                            <FilterBtn label="BEHAVIOR" active={filter === 'BEHAVIOR'} onClick={() => setFilter('BEHAVIOR')} />
-                            <FilterBtn label="TRIGGER" active={filter === 'TRIGGER'} onClick={() => setFilter('TRIGGER')} />
-                        </div>
-                        <button onClick={onClose} className="ml-6 text-[#78716c] hover:text-white uppercase font-bold text-xs tracking-widest">CLOSE</button>
-                    </div>
-
-                    {/* Grid */}
-                    <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[#0f0e0d] relative">
-                        {/* FIX 3: Section Headers could go here if we grouped, but purely sticking to Grid for now per prompt preference for 'Dividers'. 
-                             Since filtering flattens logic, we'll keep grid but clean it up. 
-                         */}
-
-                        <div className="grid grid-cols-4 gap-3 content-start">
-                            {libraryCards.map(def => (
-                                <LibraryCard key={def.id} def={def} onDragStart={handleDragStart} onDragEnd={handleDragEnd} />
-                            ))}
-                        </div>
-
-                        {libraryCards.length === 0 && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-[#44403c] pointer-events-none">
-                                <div className="text-4xl mb-4 opacity-50">FILTER_EMPTY</div>
-                                <div className="text-xs uppercase tracking-widest">No matching cards found</div>
+                            {/* Stats Row */}
+                            <div className="flex justify-center gap-12 w-full mb-8">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[#57534e] text-[9px] font-bold uppercase tracking-widest mb-1">Damage</span>
+                                    <span className="text-[#e5d5ac] font-mono text-lg font-bold">{Math.round(baseDmg)}</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[#57534e] text-[9px] font-bold uppercase tracking-widest mb-1">Cooldown</span>
+                                    <span className="text-[#e5d5ac] font-mono text-lg font-bold">{cooldown}s</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[#57534e] text-[9px] font-bold uppercase tracking-widest mb-1">Radius</span>
+                                    <span className="text-[#e5d5ac] font-mono text-lg font-bold">{radius}m</span>
+                                </div>
                             </div>
-                        )}
+
+                            {/* Level Up Button */}
+                            <button
+                                onClick={() => (dust >= levelCost) && onUpgradeSpell(selectedSpellId)}
+                                disabled={dust < levelCost}
+                                className={`
+                                    bg-[#1c1917] border border-[#44403c] rounded-full px-8 py-3 flex items-center gap-3 transition-all
+                                    ${dust >= levelCost
+                                        ? 'hover:border-[#d4b06c] hover:bg-[#292524] hover:shadow-[0_0_20px_rgba(212,176,108,0.1)] group'
+                                        : 'opacity-50 cursor-not-allowed'}
+                                `}
+                            >
+                                <span className="text-[#a89068] font-bold text-xs tracking-widest uppercase group-hover:text-[#e5d5ac]">Level Up Spell</span>
+                                <span className="w-1 h-1 bg-[#44403c] rounded-full"></span>
+                                <span className="text-[#d4b06c] font-black text-xs">{levelCost} Dust</span>
+                            </button>
+                        </div>
+
+
+                        {/* 2. TALENTS CHECKBOX GRID (The "Look" of the user image) */}
+                        {/* 
+                           The user image showed a 3x3 grid. 
+                           I will render ACTIVE slots prominently, then the rest. 
+                           Or better: I will render ALL Major talents in a grid, and HIGHLIGHT the active ones.
+                           This matches the user's "Selection" mental model better than separate slots.
+                        */}
+                        <div className="w-full max-w-3xl">
+                            {/* Tabs for categories (still useful even if grid) */}
+                            <div className="flex justify-center gap-8 mb-8 border-b border-[#292524]">
+                                {['PROJECTILE', 'AREA', 'SPECIAL'].map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab as any)}
+                                        className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 -mb-0.5 ${activeTab === tab ? 'text-[#e5d5ac] border-[#d4b06c]' : 'text-[#57534e] border-transparent hover:text-[#a8a29e]'}`}
+                                    >
+                                        {tab}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Grid of Majors */}
+                            <div className="grid grid-cols-4 gap-4 mb-12">
+                                {filteredAvailableMajors.concat(
+                                    // Also show active ones that match this category? 
+                                    // Actually, let's just show *ALL* majors for this tab.
+                                    majorTalents.filter(t => getCategory(t.id) === activeTab)
+                                ).filter((t, index, self) =>
+                                    // Dedupe because I concatenated available + all
+                                    index === self.findIndex((t2) => t2.id === t.id)
+                                ).map(talent => renderTalentGridItem(talent, false))}
+
+                                {filteredAvailableMajors.length === 0 && majorTalents.filter(t => getCategory(t.id) === activeTab).length === 0 && (
+                                    <div className="col-span-4 py-8 text-center text-[#292524] uppercase font-bold text-xs tracking-widest">
+                                        No talents in this category
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Affixes Section */}
+                            <div className="border-t border-[#292524] pt-8">
+                                <h3 className="text-[#57534e] text-center text-[10px] font-black uppercase tracking-[0.2em] mb-6">Affix Modifications</h3>
+                                <div className="grid grid-cols-5 gap-4">
+                                    {affixTalents.map(talent => renderTalentGridItem(talent, true))}
+                                    {affixTalents.length === 0 && <span className="col-span-5 text-center text-[#292524] text-xs">No Affixes</span>}
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* 3. LIVE PREVIEW FOOTER */}
+                    <div className="h-16 bg-[#0c0a09] border-t border-[#292524] flex items-center justify-between px-8 z-10 box-border">
+                        <div className="flex flex-col">
+                            <span className="text-[#44403c] font-bold text-[9px] uppercase tracking-widest mb-1">Live Preview</span>
+                            <div className="flex items-center gap-2 text-xs text-[#a8a29e]">
+                                {/* Dynamic Text based on actives */}
+                                {activeMajorIds.length > 0 ? (
+                                    activeMajorIds.map((id, i) => {
+                                        const t = allTalents.find(t => t.id === id);
+                                        return (
+                                            <span key={id} className="flex items-center gap-2">
+                                                {i > 0 && <span className="text-[#292524]">•</span>}
+                                                <span className="font-bold text-[#e5d5ac]">{t?.name}</span>
+                                            </span>
+                                        );
+                                    })
+                                ) : (
+                                    <span className="text-[#44403c] italic">No behaviors modified</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <button className="text-[#57534e] hover:text-[#a8a29e] text-[10px] font-bold uppercase tracking-widest px-4 py-2">Refund All</button>
+                            <button
+                                onClick={onClose}
+                                className="bg-[#d4b06c] hover:bg-[#ffe082] text-black text-[10px] font-black uppercase tracking-widest px-6 py-2 rounded-sm shadow-lg transition-all"
+                            >
+                                Confirm Build
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             </div>
-        </div>
-    );
-};
-
-// --- SUB COMPONENTS ---
-
-const FilterBtn = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
-    <button
-        onClick={onClick}
-        className={`px-3 py-1 text-[10px] font-bold uppercase rounded border transition-colors tracking-wider ${active
-                ? 'bg-[#d4b06c] text-black border-[#d4b06c]'
-                : 'bg-transparent text-[#78716c] border-[#292524] hover:border-[#57534e] hover:text-[#a8a29e]'
-            }`}
-    >
-        {label}
-    </button>
-);
-
-const LibraryCard = ({ def, onDragStart, onDragEnd }: { def: CardDefinition, onDragStart: (e: React.DragEvent, id: string) => void, onDragEnd: () => void }) => {
-    // Rarity Colors
-    const rarityInfo: Record<string, string> = {
-        MYTHIC: '#ef4444',
-        LEGENDARY: '#fbbf24',
-        EPIC: '#a855f7',
-        RARE: '#3b82f6',
-        UNCOMMON: '#22c55e',
-        COMMON: '#a8a29e'
-    };
-    const color = rarityInfo[def.rarity] || '#a8a29e';
-
-    return (
-        <div
-            draggable
-            onDragStart={(e) => onDragStart(e, def.id)}
-            onDragEnd={onDragEnd}
-            className="group bg-[#1c1917] border border-[#292524] hover:border-[#57534e] rounded-[4px] relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform overflow-hidden aspect-[4/5] shadow-lg"
-            style={{ borderColor: `color-mix(in srgb, ${color} 20%, #292524)` }}
-        >
-            {/* FIX 1: Dark Overlay for Text Contrast */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/10 pointer-events-none z-10" />
-
-            {/* Background Image (Abstract/Icon) */}
-            <div className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity z-0 flex items-center justify-center overflow-hidden">
-                {/* FIX 2: No Filename Bleed - Pure decorative background */}
-                <div className="text-[60px] opacity-10 blur-sm grayscale group-hover:grayscale-0 transition-all font-black select-none" style={{ color: color }}>
-                    {def.icon || '✦'}
-                </div>
-            </div>
-
-            {/* Content Plane */}
-            <div className="relative z-20 h-full flex flex-col p-3">
-                {/* Header */}
-                <div className="flex justify-between items-start mb-auto">
-                    {/* Tiny rarity indicator */}
-                    <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_4px_currentColor]" style={{ backgroundColor: color }} />
-                </div>
-
-                {/* Body */}
-                <div className="mt-auto">
-                    <div className="text-[#e7e5e4] font-black text-xs uppercase tracking-tight leading-tight mb-1 drop-shadow-md">
-                        {def.name}
-                    </div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest mb-2 opacity-80" style={{ color: color }}>
-                        {def.type.replace('_', ' ')}
-                    </div>
-
-                    {/* Description - Clamped */}
-                    <div className="text-[10px] text-[#a8a29e] leading-snug line-clamp-2 min-h-[2.5em] font-medium opacity-90 border-t border-white/10 pt-1">
-                        {def.description}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-interface EquippedSlotProps {
-    card?: CardInstance;
-    index: number;
-    onRemove: (id: string) => void;
-    onDrop: (id: string) => void;
-    isDragging: boolean;
-}
-
-const EquippedSlot: React.FC<EquippedSlotProps> = ({ card, index, onRemove, onDrop, isDragging }) => {
-    const [isHovered, setIsHovered] = useState(false);
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsHovered(true);
-    };
-    const handleDragLeave = () => setIsHovered(false);
-
-    const handleDropEvent = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsHovered(false);
-        const cardId = e.dataTransfer.getData('cardId');
-        if (cardId) onDrop(cardId);
-    };
-
-    const def = card ? CARD_REGISTRY[card.cardId] : null;
-
-    // FIX 4: Slot Affordance & Index Glyphs
-    const ROMAN = ['I', 'II', 'III', 'IV', 'V'][index];
-
-    return (
-        <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDropEvent}
-            className={`
-                h-16 relative rounded border flex items-center px-2 gap-3 transition-all duration-200
-                ${card
-                    ? 'bg-[#1c1917] border-[#d4b06c]/50 shadow-md'
-                    : isHovered
-                        ? 'bg-[#d4b06c]/10 border-[#d4b06c] shadow-[0_0_12px_rgba(212,176,108,0.35)]'
-                        : isDragging
-                            ? 'bg-[#d4b06c]/5 border-[#d4b06c]/30 border-dashed animate-pulse'
-                            : 'bg-[#0f0e0d] border-[#292524] border-dashed hover:border-[#57534e]'}
-            `}
-        >
-            {/* Slot Index Glyph */}
-            <div className="absolute top-1 right-2 text-[9px] font-black text-[#292524] pointer-events-none select-none">
-                {ROMAN}
-            </div>
-
-            {card && def ? (
-                <>
-                    {/* Icon Box */}
-                    <div className="w-12 h-12 bg-[#0c0a09] rounded border border-[#292524] flex items-center justify-center text-xl text-[#d4b06c] shrink-0 relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#d4b06c]/10 to-transparent" />
-                        <span className="relative z-10 drop-shadow">{def.icon || '★'}</span>
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
-                        <div className="text-[#e5d5ac] font-bold text-xs truncate uppercase tracking-tight">{def.name}</div>
-                        <div className="text-[#78716c] text-[9px] uppercase font-bold tracking-wider">{def.type.replace('_', ' ')}</div>
-                    </div>
-
-                    {/* Controls */}
-                    <button
-                        onClick={() => onRemove(card.instanceId)}
-                        className="w-6 h-6 flex items-center justify-center text-[#44403c] hover:text-red-400 font-bold transition-colors"
-                        title="Unequip"
-                    >
-                        ✕
-                    </button>
-                </>
-            ) : (
-                <div className={`w-full text-center text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-colors ${isHovered ? 'text-[#d4b06c]' : 'text-[#44403c]'}`}>
-                    {isHovered ? 'EQUIP' : 'OPEN SLOT'}
-                </div>
-            )}
         </div>
     );
 };

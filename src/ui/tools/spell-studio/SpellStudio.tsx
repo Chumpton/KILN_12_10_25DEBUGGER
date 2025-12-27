@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SPELL_REGISTRY } from '../../../modules/spells/SpellRegistry';
 import { ANIMATION_LIBRARY } from '../../../data/AnimationData';
 import { DEFAULT_SPELL } from '../../../components/spell-studio/constants';
 
@@ -41,13 +42,17 @@ export const SpellStudio: React.FC<SpellStudioProps> = ({ onBack }) => {
     const [activeTab, setActiveTab] = useState('PROPERTIES');
     const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [libraryMode, setLibraryMode] = useState<'ANIMATIONS' | 'SPELLS'>('SPELLS');
 
     const handleCast = () => {
-        play();
-        // Reset progress to 0 if needed or engine handles it?
-        // Usually cast starts from 0.
-        // engine.cast() spawns projectile at current cursor/spawn point.
-        engine.cast();
+        cast();
+    };
+
+    const handleSelectSpell = (spellKey: string) => {
+        const spell = SPELL_REGISTRY[spellKey];
+        if (spell) {
+            controller.updateSpell(spell);
+        }
     };
 
     const handleSaveAnimationLibrary = async () => {
@@ -73,9 +78,18 @@ export const SpellStudio: React.FC<SpellStudioProps> = ({ onBack }) => {
                 setCollapsed={setLeftPanelCollapsed}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
+
+                mode={libraryMode}
+                onModeChange={setLibraryMode}
+
                 animations={ANIMATION_LIBRARY}
                 selectedAnim={session.timeline.selectedAnim}
                 onSelectAnim={(anim) => controller.setSelectedAnim(anim)}
+
+                spells={SPELL_REGISTRY}
+                selectedSpellId={session.spell.id}
+                onSelectSpell={handleSelectSpell}
+
                 onBack={onBack}
                 onSave={handleSaveAnimationLibrary}
             />

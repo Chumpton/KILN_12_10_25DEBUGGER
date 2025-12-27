@@ -10,6 +10,7 @@ export type SpellKind =
     | 'MELEE'
     | 'DASH'
     | 'SUMMON'
+    | 'TRANSFORM'
     | 'UTILITY';
 
 export type BehaviorFlag =
@@ -77,6 +78,12 @@ export interface Stats {
     gravityForce?: number;
 
     selfDamageOnCast?: number;
+    explosionRadiusFlat?: number;
+    useHealthCost?: boolean;
+    buffStoneskin?: number;
+    buffThorns?: number;
+    buffDeflection?: number;
+    morph?: string;
 }
 
 export interface Buffs {

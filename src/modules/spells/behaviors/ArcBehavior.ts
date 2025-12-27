@@ -1,8 +1,8 @@
-
 import { SpellBehavior } from '../SpellBehavior';
 import { GameState, Player, Enemy, SpellType, Vector2 } from '../../../types';
 import { SpellDefinition } from '../SpellRegistry';
-import { SpellCallbacks } from '../SpellSystem';
+// Fixed Import
+import { SpellCallbacks } from '../SpellBehavior';
 
 const RANGE = 6; // Tiles
 const CHAIN_RANGE = 4;

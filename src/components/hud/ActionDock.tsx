@@ -36,13 +36,13 @@ interface ActionDockProps {
     onAssignHotbarSlot: (index: number, spell: SpellType | null) => void;
     onSelectSpell: (spell: SpellType) => void;
     setTrashHover: (hover: boolean) => void;
-    inSafeZone: boolean;
+
 }
 
 export const ActionDock: React.FC<ActionDockProps> = ({
     player, hotbarSpells, draggedSpell, dragOverHotbarIndex, draggedFromHotbarIndex, trashHover,
     setDraggedSpell, setDraggedFromHotbarIndex, setDragOverHotbarIndex, setHotbarSpells, onAssignHotbarSlot, onSelectSpell,
-    setTrashHover, inSafeZone
+    setTrashHover
 }) => {
     const [pressedSlot, setPressedSlot] = React.useState<number | null>(null);
 
@@ -176,7 +176,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                                         }}
                                     >
                                         <div
-                                            className={`w-14 h-14 rounded border-2 flex items-center justify-center text-3xl transition-all relative overflow-hidden ${!spell || !player.knownSpells.includes(spell as SpellType) || inSafeZone ? 'bg-gray-900 border-gray-700 opacity-50' : player.currentSpell === spell ? 'shadow-[0_0_15px_rgba(255,255,255,0.6)] border-white ring-2 ring-white scale-105 z-10' : 'border-gray-800 bg-black/60 opacity-60 hover:opacity-100 hover:border-gray-500'} ${pressedSlot === index ? 'ring-4 ring-yellow-400 brightness-150 scale-90' : ''}`}
+                                            className={`w-14 h-14 rounded border-2 flex items-center justify-center text-3xl transition-all relative overflow-hidden ${!spell || !player.knownSpells.includes(spell as SpellType) ? 'bg-gray-900 border-gray-700 opacity-50' : player.currentSpell === spell ? 'shadow-[0_0_15px_rgba(255,255,255,0.6)] border-white ring-2 ring-white scale-105 z-10' : 'border-gray-800 bg-black/60 opacity-60 hover:opacity-100 hover:border-gray-500'} ${pressedSlot === index ? 'ring-4 ring-yellow-400 brightness-150 scale-90' : ''}`}
                                         >
                                             {iconPath ? (
                                                 <img src={iconPath} alt={config?.name} className="w-full h-full object-cover p-1" />

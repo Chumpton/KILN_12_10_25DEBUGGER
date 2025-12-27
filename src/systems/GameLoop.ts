@@ -117,7 +117,7 @@ export const updateGame = (
 
     if (cooldownRef.current > 0) cooldownRef.current--;
     if (state.player.roll.cooldown > 0) state.player.roll.cooldown--;
-    updateCasting(state.player, state, callbacks, cooldownRef, mouseWorld);
+    updateCasting(state.player, state, callbacks, cooldownRef, mouseWorld, undefined, inputSystem);
     updateWeaponSystem(state, callbacks, mouseWorld);
     updateLoot(state, 16.66, callbacks); // NEW: Update Loot Physics/Vacuum
     updateAreaEffects(state, 1.0, callbacks); // NEW: Update Portals/AoE

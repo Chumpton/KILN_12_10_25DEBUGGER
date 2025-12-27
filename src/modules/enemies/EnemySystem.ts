@@ -2,6 +2,7 @@ import { GameState, Enemy, Vector2 } from '../../types';
 import { enemiesCollide, calculateEnemyHitboxes, ScreenRect, rectOverlap } from '../../utils/hitboxUtils';
 import { toScreen } from '../../utils/isometric';
 import { spawnLoot } from '../loot/LootSystem';
+import { generateLootItem } from '../items/ItemGenerator';
 import { COIN_VALUE_RANGE, BOSS_CONFIG, ANT_CONFIG, GOLEM_CONFIG, SPITTER_CONFIG } from '../../constants';
 
 export const SPAWN_RADIUS = 15; // tiles
@@ -41,7 +42,8 @@ export const spawnEnemy = (state: GameState, pos: Vector2, aiState: 'IDLE' | 'PA
         patrolRange: patrolRange,
         hitTimer: 0,
         enemyState: 'ALIVE',
-        deathTimer: 0
+        deathTimer: 0,
+        shockTimer: 0
     };
     state.enemies.push(newEnemy);
     return newEnemy;
@@ -92,19 +94,39 @@ export const updateEnemies = (state: GameState, dt: number, callbacks?: any) => 
             }
         }
 
+        // Generic Death Check (for non-burn damage)
+        if (enemy.hp <= 0 && enemy.enemyState !== 'DYING') {
+            enemy.enemyState = 'DYING';
+            enemy.deathTimer = 30; // Standard death duration
+
+            // Trigger Death Callback
+            if (callbacks && callbacks.onEnemyDeath) callbacks.onEnemyDeath(enemy);
+
+            // Spawn Loot
+            // Spawn Loot
+            const drops: any[] = [
+                { type: 'xp_orb', value: enemy.xpValue || 10 },
+                { type: 'coin', value: enemy.coinValue || 1 }
+            ];
+
+            // 20% Chance for Equipment
+            if (Math.random() < 0.20) {
+                // Generate Item
+                // Using player level? We don't have it here easily, effectively using Enemy Level scaling proxy
+                // Assuming Level 1 for now or we pass logic.
+                // Let's pass a generic level based on enemy strength or just 1.
+                const item = generateLootItem(1, 'weapon'); // Biased to weapons for testing
+                drops.push({ type: 'equipment', data: item, rarity: item.rarity });
+            }
+
+            spawnLoot(state, enemy.pos, drops);
+        }
+
         // Death Animation Limit
         if (enemy.enemyState === 'DYING') {
             // Apply simple physics during death (fall back)
             if (enemy.deathTimer === 45) { // Start of death
-                // Knockback away from player
-                const dx = enemy.pos.x - player.pos.x;
-                const dy = enemy.pos.y - player.pos.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    const force = 0.5;
-                    enemy.velocity.x += (dx / dist) * force;
-                    enemy.velocity.y += (dy / dist) * force;
-                }
+                // No more flying away
             }
 
             enemy.deathTimer--;

@@ -5,7 +5,7 @@ import { TILE_WIDTH } from '../../constants';
 
 export interface VisualEffect {
     id: string;
-    type: 'nova' | 'particle' | 'text' | 'ring' | 'surge' | 'shatter' | 'sprite';
+    type: 'nova' | 'particle' | 'text' | 'ring' | 'surge' | 'shatter' | 'sprite' | 'lightning_chain';
     pos: Vector2;
     velocity?: Vector2;
     life: number;
@@ -133,6 +133,45 @@ export const VfxRenderer = {
                 // Rise up
                 const yOffset = -20 * invPct;
                 ctx.fillText(vfx.data?.text || '', 0, yOffset);
+            } else if (vfx.type === 'lightning_chain') {
+                // Lightning Bolt
+                if (vfx.data?.target) {
+                    const targetScreen = camera.toScreen(vfx.data.target.x, vfx.data.target.y);
+                    // Support visual offset (e.g. aiming for chest/head)
+                    if (vfx.data.targetOffset) {
+                        targetScreen.x += (vfx.data.targetOffset.x || 0);
+                        targetScreen.y += (vfx.data.targetOffset.y || 0);
+                    }
+
+                    // We are already translated to start (vfx.pos) -> (0,0)
+                    // So we need relative coords for target
+                    const dx = targetScreen.x - s.x;
+                    const dy = targetScreen.y - s.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    ctx.strokeStyle = vfx.color;
+                    ctx.lineWidth = vfx.data.thickness || 2;
+                    ctx.lineCap = 'round';
+                    ctx.shadowColor = vfx.color;
+                    ctx.shadowBlur = 10;
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+
+                    // ZigZag Logic
+                    const segments = Math.floor(dist / 20); // every 20px
+                    if (segments > 0) {
+                        for (let i = 1; i < segments; i++) {
+                            const t = i / segments;
+                            const jitter = (Math.random() - 0.5) * 20; // +/- 10px
+                            // Perpendicular jitter could be better but simple random is mostly fine for fast lightning
+                            ctx.lineTo(dx * t + jitter, dy * t + jitter);
+                        }
+                    }
+                    ctx.lineTo(dx, dy);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0; // Reset
+                }
             }
 
             ctx.restore();

@@ -1,4 +1,4 @@
-import { SpellDefinition } from '../../../types';
+import { SpellDefinition } from '../../../modules/spells/SpellRegistry';
 
 /**
  * Unified editing session state for Spell Studio

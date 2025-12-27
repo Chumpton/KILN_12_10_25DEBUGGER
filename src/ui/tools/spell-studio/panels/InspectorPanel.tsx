@@ -137,6 +137,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 {/* --- SPELL TAB --- */}
                 {activeTab === 'SPELL' && (
                     <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
+                        {/* CORE */}
                         <div className="bg-[#18181b] p-3 rounded border border-[#3f3f46] space-y-3">
                             <h4 className="text-[10px] uppercase text-purple-400 font-bold">Core Definition</h4>
                             <div>
@@ -145,61 +146,84 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-[10px] text-zinc-400">Element</label>
-                                    <select value={spell.element} onChange={e => controller.setSpellElement(e.target.value)} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200">
+                                    <label className="text-[10px] text-zinc-400">School</label>
+                                    <select value={spell.school} onChange={e => controller.setSpellSchool(e.target.value)} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200">
                                         {['FIRE', 'ICE', 'LIGHTNING', 'EARTH', 'WIND'].map(el => <option key={el} value={el}>{el}</option>)}
                                     </select>
                                 </div>
-                                {/* Type selector */}
                             </div>
                         </div>
 
-                        {/* Stats - using generic Input helper or direct */}
+                        {/* BASE STATS */}
                         <div className="bg-[#18181b] p-3 rounded border border-[#3f3f46] space-y-3">
-                            <h4 className="text-[10px] uppercase text-green-400 font-bold">Stats</h4>
+                            <h4 className="text-[10px] uppercase text-green-400 font-bold">Base Stats</h4>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="text-[10px] text-zinc-400">Base Dmg</label>
-                                    <input type="number" value={spell.baseDamage} onChange={e => controller.updateSpell({ ...spell, baseDamage: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                    <input type="number" value={spell.baseStats?.baseDamage || 0} onChange={e => controller.updateBaseStats({ baseDamage: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
                                 </div>
                                 <div>
                                     <label className="text-[10px] text-zinc-400">Mana Cost</label>
-                                    <input type="number" value={spell.manaCost} onChange={e => controller.updateSpell({ ...spell, manaCost: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                    <input type="number" value={spell.baseStats?.manaCost || 0} onChange={e => controller.updateBaseStats({ manaCost: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Timing */}
-                        <div className="bg-[#18181b] p-3 rounded border border-[#3f3f46] space-y-3">
-                            <h4 className="text-[10px] uppercase text-yellow-500 font-bold">Timing</h4>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-[10px] text-zinc-400">Cast Time</label>
-                                    <input type="number" value={spell.castTime} onChange={e => controller.setCastTime(parseFloat(e.target.value))} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                    <label className="text-[10px] text-zinc-400">Cast Time (s)</label>
+                                    <input type="number" value={spell.baseStats?.castTime || 0} onChange={e => controller.updateBaseStats({ castTime: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] text-zinc-400">Recovery</label>
-                                    <input type="number" value={spell.recoveryTime} onChange={e => controller.setRecoveryTime(parseFloat(e.target.value))} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                    <label className="text-[10px] text-zinc-400">Cooldown (s)</label>
+                                    <input type="number" value={spell.baseStats?.cooldown || 0} onChange={e => controller.updateBaseStats({ cooldown: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Projectile */}
-                        {spell.projectile && (
-                            <div className="bg-[#18181b] p-3 rounded border border-[#3f3f46] space-y-3">
-                                <h4 className="text-[10px] uppercase text-cyan-400 font-bold">Projectile</h4>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[10px] text-zinc-400">Speed</label>
-                                        <input type="number" value={spell.projectile.speed} onChange={e => controller.setProjectileSpeed(parseFloat(e.target.value))} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-zinc-400">Gravity</label>
-                                        <input type="number" value={spell.projectile.gravity || 0} onChange={e => controller.setProjectileGravity(parseFloat(e.target.value))} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
-                                    </div>
+                        {/* ADVANCED STATS */}
+                        <div className="bg-[#18181b] p-3 rounded border border-[#3f3f46] space-y-3">
+                            <h4 className="text-[10px] uppercase text-yellow-500 font-bold">Advanced Stats</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Crit Chance (0-1)</label>
+                                    <input type="number" step="0.05" value={spell.baseStats?.critChance || 0} onChange={e => controller.updateBaseStats({ critChance: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Crit Multiplier</label>
+                                    <input type="number" step="0.1" value={spell.baseStats?.critMultiplier || 2} onChange={e => controller.updateBaseStats({ critMultiplier: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Proj Speed</label>
+                                    <input type="number" value={spell.baseStats?.projectileSpeed || 0} onChange={e => controller.updateBaseStats({ projectileSpeed: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Lifetime (s)</label>
+                                    <input type="number" value={spell.baseStats?.projectileLifetime || 0} onChange={e => controller.updateBaseStats({ projectileLifetime: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
                                 </div>
                             </div>
-                        )}
+                        </div>
+
+                        {/* GEOMETRY & TARGETING */}
+                        <div className="bg-[#18181b] p-3 rounded border border-[#3f3f46] space-y-3">
+                            <h4 className="text-[10px] uppercase text-cyan-400 font-bold">Geometry & Targeting</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">AOE Radius</label>
+                                    <input type="number" value={spell.baseStats?.aoeRadius || 0} onChange={e => controller.updateBaseStats({ aoeRadius: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Projectiles</label>
+                                    <input type="number" value={spell.geometry?.projectileCount || 1} onChange={e => controller.updateGeometry({ projectileCount: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Spread (deg)</label>
+                                    <input type="number" value={spell.geometry?.projectileSpreadDegrees || 0} onChange={e => controller.updateGeometry({ projectileSpreadDegrees: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-zinc-400">Homing Str</label>
+                                    <input type="number" value={spell.geometry?.homingStrength || 0} onChange={e => controller.updateGeometry({ homingStrength: parseFloat(e.target.value) })} className="w-full bg-[#27272a] border border-[#3f3f46] rounded p-1 text-xs text-zinc-200" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 

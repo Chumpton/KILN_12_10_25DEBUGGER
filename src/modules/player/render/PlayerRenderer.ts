@@ -760,12 +760,31 @@ export class PlayerRenderer {
 
                 if (parentName === 'arm_r' && player.equipment.MAIN_HAND && weaponState === WeaponState.DRAWN && assets.sword1.complete) {
                     const weapon = parts['weapon_r'] || { x: 0, y: 15, rotation: 0, scale: 1, zIndex: 6, flipX: false };
-                    const animRot = (animations['weapon_r']?.rotation || 0);
+
+                    // --- WEAPON SWING ANIMATION ---
+                    // Calculate extra rotation based on attack phase
+                    let swingRot = 0;
+                    if (player.attack.isAttacking && player.attack.phase === 'SWING' as any) {
+                        // Swing progress 0 -> 1
+                        const t = player.attack.timer / 9; // SWING_FRAMES = 9
+                        // Swipe from -45 to +90 degrees relative to hand
+                        // Easing function for snap? Linear is fine for Terraria style.
+                        const startAngle = -Math.PI / 2;
+                        const endAngle = Math.PI;
+                        swingRot = startAngle + (endAngle - startAngle) * t;
+                    } else if (player.attack.phase === 'WINDUP' as any) {
+                        // Windup (hold back)
+                        swingRot = -Math.PI / 2;
+                    }
+
+                    const animRot = (animations['weapon_r']?.rotation || 0) + swingRot;
+
                     recordProcedural((c: CanvasRenderingContext2D) => {
                         c.save();
                         c.translate(weapon.x, weapon.y);
                         c.rotate((weapon.rotation || 0) + animRot);
                         c.scale((weapon.scale || 1) * (weapon.flipX ? -1 : 1), weapon.scale || 1);
+                        // Pivot at handle (bottom center approx)
                         c.drawImage(assets.sword1, -assets.sword1.width / 2, -assets.sword1.height);
                         c.restore();
                     }, weapon.zIndex ?? 6);

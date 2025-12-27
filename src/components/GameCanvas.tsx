@@ -6,7 +6,8 @@ import { Player, ShopItem, Vector2, SpellType, MeleeAttackPhase, Enemy } from '.
 import { getTileAt } from '../modules/world/WorldGen';
 import { inputSystem } from '../systems/InputSystem';
 import { playerRenderer } from '../modules/player/render/PlayerRenderer';
-import { initiateCast, updateCasting, updateProjectiles, SpellCallbacks, handleEnemyDeath, fireSpell, updateAreaEffects } from '../modules/spells/SpellSystem';
+import { initiateCast, updateCasting, updateProjectiles, handleEnemyDeath, fireSpell, updateAreaEffects, updatePlayerBuffs } from '../modules/spells/SpellSystem';
+import { SpellCallbacks } from '../modules/spells/SpellBehavior';
 import { GameState } from '../types';
 import { updateEnemies, spawnEnemy, SPAWN_RADIUS } from '../modules/enemies/EnemySystem';
 import { enemyRenderer } from '../modules/enemies/EnemyRenderer';
@@ -54,12 +55,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
     const moveTargetRef = useRef<{ x: number, y: number } | null>(null);
 
     const gameStateRef = useRef<GameState>({
-        player: initialPlayer,
         enemies: [],
         projectiles: [],
         loot: [],
         score: 0,
         gameTime: 0,
+        player: {
+            ...initialPlayer,
+            magicDust: initialPlayer.magicDust || 0,
+            roll: { isRolling: false, timer: 0, cooldown: 0, dir: { x: 0, y: 0 } }
+        },
         activeQuest: { id: 'q1', description: 'Survive', type: 'kill', target: 10, current: 0, rewardXp: 100, rewardCoins: 50 },
         shopItems: [],
         shopResetTimer: 0,
@@ -83,6 +88,22 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
     useEffect(() => {
         // Init singleton once
         tileSystem.importData(SAVED_TILE_MAP);
+
+        // USER REQUEST: Add Basic Sword First
+        if (!initialPlayer.equipment.MAIN_HAND) {
+            initialPlayer.equipment.MAIN_HAND = {
+                id: 'starter_sword',
+                name: 'Rusty Iron Sword',
+                slot: 'MAIN_HAND',
+                rarity: 'common',
+                visual: { theme: 'RUSTED', primaryColor: '#aaa' },
+                stats: { damage: 5 },
+                icon: '🗡️',
+                weaponType: 'SWORD',
+                w: 1, h: 1
+            };
+            console.log("Granted Starter Sword");
+        }
     }, []);
 
     useEffect(() => {
@@ -96,14 +117,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
 
         gameActionsRef.current.unlockSpell = (spell: SpellType) => {
             const s = gameStateRef.current;
-            // Check points
-            if (s.player.spellPoints && s.player.spellPoints > 0) {
+            const UNLOCK_COST = 500;
+            // Check Dust
+            if ((s.player.magicDust || 0) >= UNLOCK_COST) {
                 if (!s.player.knownSpells.includes(spell)) {
-                    s.player.spellPoints--;
+                    s.player.magicDust = (s.player.magicDust || 0) - UNLOCK_COST;
                     s.player.knownSpells.push(spell);
-                    // Create callback if needed to show text or rely on loop
-                    // We don't have access to 'callbacks' here easily as it's inside loop
-                    // But we can modify state directly.
                 }
             }
         };
@@ -112,6 +131,37 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
             const s = gameStateRef.current;
             if (s && s.player) {
                 s.player.currentSpell = spell;
+            }
+        };
+
+        gameActionsRef.current.upgradeTalent = (spell: SpellType, talentId: string) => {
+            const s = gameStateRef.current;
+            if (!s.player.spellTalents) s.player.spellTalents = {};
+            if (!s.player.spellTalents[spell]) s.player.spellTalents[spell] = {};
+
+            const currentRank = s.player.spellTalents[spell][talentId] || 0;
+            const cost = 200 + (currentRank * 150);
+
+            if ((s.player.magicDust || 0) >= cost) {
+                s.player.magicDust = (s.player.magicDust || 0) - cost;
+                s.player.spellTalents[spell][talentId] = currentRank + 1;
+            }
+        };
+
+        gameActionsRef.current.upgradeSpell = (spell: SpellType) => {
+            const s = gameStateRef.current;
+            if (!s.player.knownSpells.includes(spell)) return;
+
+            if (!s.player.spellUpgrades) s.player.spellUpgrades = {};
+            const currentLevel = s.player.spellUpgrades[spell] || 1;
+
+            if (currentLevel >= 25) return;
+
+            const cost = currentLevel * 100;
+            if ((s.player.magicDust || 0) >= cost) {
+                s.player.magicDust = (s.player.magicDust || 0) - cost;
+                s.player.spellUpgrades[spell] = currentLevel + 1;
+                console.log(`[GameCanvas] Upgraded ${spell} to level ${currentLevel + 1}`);
             }
         };
 
@@ -126,33 +176,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
         };
 
 
-        gameActionsRef.current.equipCard = (spell: SpellType, card: import('../modules/cards/types').CardInstance) => {
-            const s = gameStateRef.current;
-            if (s && s.player) {
-                // Initialize if missing (Partial)
-                if (!s.player.equippedCards) s.player.equippedCards = {};
-                if (!s.player.equippedCards[spell]) s.player.equippedCards[spell] = [];
 
-                // Add card
-                s.player.equippedCards[spell]!.push(card);
-
-                // Remove from inventory
-                s.player.cardInventory = s.player.cardInventory.filter(c => c.instanceId !== card.instanceId);
-            }
-        };
-
-        gameActionsRef.current.unequipCard = (spell: SpellType, cardInstanceId: string) => {
-            const s = gameStateRef.current;
-            if (s && s.player && s.player.equippedCards && s.player.equippedCards[spell]) {
-                const list = s.player.equippedCards[spell]!;
-                const cardIndex = list.findIndex(c => c.instanceId === cardInstanceId);
-                if (cardIndex !== -1) {
-                    const card = list[cardIndex];
-                    list.splice(cardIndex, 1);
-                    s.player.cardInventory.push(card);
-                }
-            }
-        };
 
 
         const renderer = new GameRenderer(canvasRef.current);
@@ -173,10 +197,64 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
 
         inputSystem.bind(renderer.context.canvas);
 
-        // Bind 'G' for Mount Toggle (One-time trigger)
+        // Bind 'G' for Roll (One-time trigger)
+        // Note: Mount was moved to another key? Or distinct?
+        // User requested 'G' for Roll. Mount toggle was on 'G' previously.
+        // I will remap Mount to 'H' and use 'G' for Roll as requested.
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key.toLowerCase() === 'g' && !e.repeat) {
-                gameActionsRef.current.toggleMount();
+            const k = e.key.toLowerCase();
+            if (!e.repeat) {
+                if (k === 'g') {
+                    // Start Roll Logic
+                    const s = gameStateRef.current;
+                    if (s && s.player && !s.player.roll.isRolling && s.player.roll.cooldown <= 0) {
+                        // Determine direction (Movement or Facing)
+                        let dx = 0, dy = 0;
+                        if (inputSystem.keys.has('w')) dy -= 1;
+                        if (inputSystem.keys.has('s')) dy += 1;
+                        if (inputSystem.keys.has('a')) dx -= 1;
+                        if (inputSystem.keys.has('d')) dx += 1;
+
+                        // Normalize
+                        if (dx !== 0 || dy !== 0) {
+                            const len = Math.sqrt(dx * dx + dy * dy);
+                            dx /= len;
+                            dy /= len;
+                        } else {
+                            // Default to facing? or no roll?
+                            // Default to mouse direction for skill expression
+                            const world = camera.toWorld(inputSystem.mouseScreen.x, inputSystem.mouseScreen.y);
+                            dx = world.x - s.player.pos.x;
+                            dy = world.y - s.player.pos.y;
+                            const len = Math.sqrt(dx * dx + dy * dy);
+                            if (len > 0) { dx /= len; dy /= len; }
+                            else { dx = 1; dy = 0; } // Fallback
+                        }
+
+                        s.player.roll.isRolling = true;
+                        s.player.roll.timer = 30; // 0.5s approx
+                        s.player.roll.cooldown = 60; // 1s cooldown
+                        s.player.roll.dir = { x: dx, y: dy };
+
+                        // Stop attack/cast
+                        s.player.attack.isAttacking = false;
+                        s.player.casting.isCasting = false;
+
+                        // Visuals
+                        s.visualEffects.push({
+                            id: `roll_${Date.now()}`,
+                            type: 'particle',
+                            pos: { ...s.player.pos },
+                            life: 20,
+                            maxLife: 20,
+                            color: '#ffffff',
+                            data: { size: 1 } // weak puff
+                        } as any);
+                    }
+                }
+                if (k === 'h') {
+                    gameActionsRef.current.toggleMount();
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -218,8 +296,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
 
                 // --- MOVEMENT SPEED CALCULATION ---
                 let moveMod = 1.0;
-                // USER REQUEST: Move at 30% speed if Attacking OR Holding Shift
-                if (state.player.attack.isAttacking || inputSystem.keys.has('shift')) {
+                // USER REQUEST: Move at 30% speed if Attacking OR Holding Shift OR Casting
+                if (state.player.attack.isAttacking || inputSystem.keys.has('shift') || state.player.casting.isCasting) {
                     moveMod = 0.3;
                 }
 
@@ -284,7 +362,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                             });
                         },
                         createImpactPuff: (pos: Vector2, spellType: SpellType) => { state.visualEffects.push({ id: `vfx_${Date.now()}`, type: 'nova', pos: { ...pos }, life: 150, maxLife: 150, color: '#fff', data: { radius: 0.8 } } as any) },
-                        createExplosion: (pos: Vector2, radius: number, damage: number, color: string, shapeData?: { type: 'RING' | 'CONE', data: any }) => {
+                        createAreaEffect: (config: any) => {
+                            const id = `ae_${Date.now()}_${Math.random()}`;
+                            if (!state.areaEffects) state.areaEffects = [];
+                            state.areaEffects.push({
+                                id: id,
+                                pos: config.pos,
+                                radius: config.radius || 1,
+                                duration: config.duration || 180,
+                                spellType: config.spellType,
+                                damage: config.damage || 0,
+                                tickInterval: config.interval || config.tickInterval || 60, // Fix mapping
+                                tickTimer: 0,
+                                color: config.color || '#ffffff',
+                                type: config.type || 'generic',
+                                ownerId: config.ownerId,
+                                data: config.data || {}
+                            } as any);
+                        },
+                        createExplosion: (pos: Vector2, radius: number, damage: number, color: string, shapeData?: { type: 'RING' | 'CONE', data: any }, knockback?: number) => {
                             if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
                                 console.warn('[GameCanvas] Invalid explosion position', pos);
                                 return;
@@ -327,20 +423,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                                     callbacks.onEnemyHit(e, damage, 'burn'); // Default to burn effect for explosions
 
                                     // Knoback?
-                                    const kbStrength = 2; // Fixed for now
+                                    const kbStrength = typeof knockback === 'number' ? knockback : 2; // Fixed for now
+
                                     const kbDist = Math.max(0.1, dist);
                                     e.velocity.x += (dx / kbDist) * kbStrength;
                                     e.velocity.y += (dy / kbDist) * kbStrength;
                                 }
-                            });
-                        },
-                        createAreaEffect: (config: any) => {
-                            // Push to state.areaEffects
-                            // Check if state.areaEffects exists, if not assume we need to add it or it's implicitly missing type def
-                            if (!state.areaEffects) state.areaEffects = [];
-                            state.areaEffects.push({
-                                id: `ae_${Date.now()}_${Math.random()}`,
-                                ...config
                             });
                         },
                         createExplosionShrapnel: () => { },
@@ -475,6 +563,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                     updateEnemies(state, dt, callbacks);
                     updateLoot(state, dt, callbacks); // NEW: Loot Physics & Vacuum
                     updateAreaEffects(state, dt, callbacks); // Portal/AoE Logic
+                    updatePlayerBuffs(state, dt); // Added Buff Updates
 
                     // Sync forced movement (Teleport/Knockback) back to local physics
                     playerPos.x = state.player.pos.x;
@@ -512,57 +601,93 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                         }
                     }
 
-                    // --- MOVEMENT PHYSICS ---
-                    state.player.velocity = { x: 0, y: 0 };
-                    const isCasting = state.player.casting.isCasting;
-                    const isAttacking = state.player.attack.isAttacking;
-                    const currentSpell = state.player.casting.currentSpell;
-                    const isMobileSpell = currentSpell === SpellType.WHIRLWIND_STRIKE;
-
-                    const canMove = (!isCasting) || isMobileSpell;
-
-                    if (canMove && moveTargetRef.current) {
-                        const dx = moveTargetRef.current.x - playerPos.x;
-                        const dy = moveTargetRef.current.y - playerPos.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-
-                        if (dist < speed) {
-                            // Arrived
-                            if (isPositionValid(state, moveTargetRef.current.x, moveTargetRef.current.y, state.player.radius)) {
-                                playerPos.x = moveTargetRef.current.x;
-                                playerPos.y = moveTargetRef.current.y;
-                            }
-                            if (!chaseTargetRef.current) moveTargetRef.current = null;
-                            state.player.velocity = { x: 0, y: 0 };
+                    // --- ROLL LOGIC ---
+                    if (state.player.roll.isRolling) {
+                        state.player.roll.timer--;
+                        if (state.player.roll.timer <= 0) {
+                            state.player.roll.isRolling = false;
                         } else {
-                            // Moving
-                            const vx = (dx / dist) * speed;
-                            const vy = (dy / dist) * speed;
+                            // Apply Roll Movement (Override normal move)
+                            const rollSpeed = playerSpeed * 2.5; // Fast burst
+                            const rDir = state.player.roll.dir || { x: 1, y: 0 };
 
-                            const nextX = playerPos.x + vx;
-                            const nextY = playerPos.y + vy;
+                            const nextX = state.player.pos.x + rDir.x * rollSpeed * (dt / 1000);
+                            const nextY = state.player.pos.y + rDir.y * rollSpeed * (dt / 1000);
 
                             if (isPositionValid(state, nextX, nextY, state.player.radius)) {
                                 playerPos.x = nextX;
                                 playerPos.y = nextY;
                             } else {
-                                // Hit wall during path travel - stop
-                                moveTargetRef.current = null;
-                                state.player.velocity = { x: 0, y: 0 };
+                                // Slide? Or stop. Stop for now to avoid wall clipping.
                             }
-
-                            state.player.velocity.x = vx;
-                            state.player.velocity.y = vy;
-
-                            const sDx = vx - vy;
-                            if ((state.player.cooldowns?.['FACING_LOCK'] || 0) <= 0) {
-                                if (sDx > 0) state.player.facingRight = true;
-                                if (sDx < 0) state.player.facingRight = false;
-                            }
+                            // Force facing
+                            if (rDir.x > 0) state.player.facingRight = true;
+                            if (rDir.x < 0) state.player.facingRight = false;
                         }
-                    } else if (!canMove) {
-                        moveTargetRef.current = null;
+                    }
+
+                    // Cleanup Cooldown
+                    if (state.player.roll.cooldown > 0) state.player.roll.cooldown--;
+
+
+                    // --- MOVEMENT PHYSICS ---
+                    // Only process standard movement if NOT rolling
+                    if (!state.player.roll.isRolling) {
                         state.player.velocity = { x: 0, y: 0 };
+                        const isCasting = state.player.casting.isCasting;
+                        const isAttacking = state.player.attack.isAttacking;
+                        const currentSpell = state.player.casting.currentSpell;
+                        const isMobileSpell = currentSpell === SpellType.WHIRLWIND_STRIKE;
+
+                        const canMove = true;
+
+                        if (canMove && moveTargetRef.current) {
+                            const dx = moveTargetRef.current.x - playerPos.x;
+                            const dy = moveTargetRef.current.y - playerPos.y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+
+                            if (dist < speed) {
+                                // Arrived
+                                if (isPositionValid(state, moveTargetRef.current.x, moveTargetRef.current.y, state.player.radius)) {
+                                    playerPos.x = moveTargetRef.current.x;
+                                    playerPos.y = moveTargetRef.current.y;
+                                }
+                                if (!chaseTargetRef.current) moveTargetRef.current = null;
+                                state.player.velocity = { x: 0, y: 0 };
+                            } else {
+                                // Moving
+                                const vx = (dx / dist) * speed;
+                                const vy = (dy / dist) * speed;
+
+                                const nextX = playerPos.x + vx;
+                                const nextY = playerPos.y + vy;
+
+                                if (isPositionValid(state, nextX, nextY, state.player.radius)) {
+                                    playerPos.x = nextX;
+                                    playerPos.y = nextY;
+                                } else {
+                                    // Hit wall during path travel - stop
+                                    moveTargetRef.current = null;
+                                    state.player.velocity = { x: 0, y: 0 };
+                                }
+
+                                state.player.velocity.x = vx;
+                                state.player.velocity.y = vy;
+
+                                const sDx = vx - vy;
+                                if ((state.player.cooldowns?.['FACING_LOCK'] || 0) <= 0) {
+                                    if (sDx > 0) state.player.facingRight = true;
+                                    if (sDx < 0) state.player.facingRight = false;
+                                }
+                            }
+                        } else if (!canMove) {
+                            moveTargetRef.current = null;
+                            state.player.velocity = { x: 0, y: 0 };
+                        }
+                    } else {
+                        // During roll, ensure velocity reflects move for camera lag smoothing if used
+                        const rDir = state.player.roll.dir || { x: 0, y: 0 };
+                        state.player.velocity = { x: rDir.x * 2.5, y: rDir.y * 2.5 };
                     }
 
                     camera.follow(playerPos.x, playerPos.y);
@@ -611,9 +736,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                                 // If it's effectively immediate, we might not need to stop.
                                 // But keeping logic consistent.
                                 if (state.player.casting.isCasting) {
-                                    // Only if castTime > 0
-                                    moveTargetRef.current = null;
-                                    chaseTargetRef.current = null;
+                                    // User Request: "maintain movement". Do not clear moveTarget.
+                                    // moveTargetRef.current = null;
+                                    chaseTargetRef.current = null; // Still clear chase to avoid conflicting logic? Chase implies attack. Casting implies spell.
+                                    // Actually, if we are chasing to ATTACK, and we cast a spell, we should probably stop "Chasing to melee" but might want to keep moving to the location?
+                                    // But typically "Chase" = "Move to Enemy".
+                                    // Let's clear chaseTarget but keep moveTarget if it was set explicitly?
+                                    // Chase sets moveTargetRef to null usually.
                                 }
                             }
                         }
@@ -700,7 +829,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
 
                             // Stop movement while casting?
                             if (state.player.casting.isCasting) {
-                                moveTargetRef.current = null;
+                                // User Request: "maintain movement". Do not clear moveTarget.
+                                // moveTargetRef.current = null;
                                 chaseTargetRef.current = null;
                             }
                         } else {
@@ -716,7 +846,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                                 // Safe default for now: Stop casting.
                                 const spell = state.player.casting.currentSpell;
                                 const config = SPELL_REGISTRY[spell];
-                                if (config && (config.hotbarType === 'CHANNEL' || spell === SpellType.FIRE || spell === SpellType.FLAMEBLAST)) {
+                                if (config && (config.hotbarType === 'CHANNEL' || spell === SpellType.FIRE || spell === SpellType.FLAMEBLAST || spell === 'LIGHTNING_ARC')) {
                                     state.player.casting.isCasting = false;
                                     state.player.casting.timer = 0;
                                 }
@@ -766,7 +896,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                         }
                     }
 
-                    updateCasting(state.player, state, callbacks, undefined, mouseWorld, handOrigin);
+                    if (state.player.casting.isCasting) {
+                        const spell = state.player.casting.currentSpell;
+                        const cfg = SPELL_REGISTRY[spell];
+                        if (cfg?.hotbarType === 'CHANNEL') {
+                            console.log(`GameCanvas: Calling updateCasting. RMouse: ${inputSystem.rightMouseDown}`);
+                        }
+                    }
+                    updateCasting(state.player, state, callbacks, undefined, mouseWorld, handOrigin, inputSystem);
                     updateProjectiles(state, dt, callbacks);
 
                     for (let i = state.visualEffects.length - 1; i >= 0; i--) {
@@ -1068,68 +1205,89 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                             ctx.restore();
                         } else if (item.type === 'projectile') {
                             const p = item.data;
-                            const s = camera.toScreen(p.pos.x, p.pos.y);
-
-                            // Visualize Projectile Lift (35px)
-                            s.y -= 35;
+                            const s = camera.toScreen(p.pos.x, p.pos.y); // Raw screen pos (Ground)
 
                             const config = SPELL_REGISTRY[p.data?.spellOverride || p.spellType];
-                            const visualLayer = config?.visualLayers?.[0]; // Use primary layer
+                            const behavior = BEHAVIOR_REGISTRY[config?.behaviorKey || 'GenericBehavior'];
 
-                            ctx.save();
-                            ctx.translate(s.x, s.y);
+                            // Check Custom Renderer
+                            if (behavior?.onRender) {
+                                ctx.save();
+                                // Pass raw screen coords (Behaviors handle their own lift)
+                                behavior.onRender(ctx, p, s.x, s.y);
+                                ctx.restore();
+                            } else {
+                                // DEFAULT RENDERER (Data Driven)
+                                // Visualize Projectile Lift (35px)
+                                const liftY = s.y - 35;
 
-                            // Rotation
-                            let rotation = Math.atan2(p.velocity.y, p.velocity.x);
-                            // Add Config Rotation Offset (e.g. for Frost Pulse Arc)
-                            if (config?.data?.rotationOffset) {
-                                rotation += config.data.rotationOffset;
-                            }
-                            ctx.rotate(rotation);
+                                const visualLayer = config?.visualLayers?.[0]; // Use primary layer
 
-                            // Visual Layer Rendering with Fallback
-                            let drawn = false;
+                                ctx.save();
+                                ctx.translate(s.x, liftY);
 
-                            if (visualLayer && visualLayer.sprite) {
-                                let img = globalImageCache.get(visualLayer.sprite);
-                                if (!img) {
-                                    img = new Image();
-                                    img.src = visualLayer.sprite;
-                                    globalImageCache.set(visualLayer.sprite, img);
+                                // Rotation
+                                let rotation = Math.atan2(p.velocity.y, p.velocity.x);
+                                // Add Config Rotation Offset (e.g. for Frost Pulse Arc)
+                                if (config?.data?.rotationOffset) {
+                                    rotation += config.data.rotationOffset;
+                                }
+                                ctx.rotate(rotation);
+
+                                // Visual Layer Rendering with Fallback
+                                let drawn = false;
+
+                                if (visualLayer && visualLayer.sprite) {
+                                    let img = globalImageCache.get(visualLayer.sprite);
+                                    if (!img) {
+                                        img = new Image();
+                                        img.src = visualLayer.sprite;
+                                        globalImageCache.set(visualLayer.sprite, img);
+                                    }
+
+                                    if (img.complete && img.naturalWidth > 0) {
+                                        const scale = (config.data?.scaleOverride || 1) * (visualLayer.scaleCurve === 'pulse' ? (1 + Math.sin(Date.now() / 100) * 0.1) : 1);
+
+                                        // Blend Mode
+                                        if (visualLayer.blendMode === 'ADDITIVE') ctx.globalCompositeOperation = 'lighter';
+                                        else if (visualLayer.blendMode === 'MULTIPLY') ctx.globalCompositeOperation = 'multiply';
+
+                                        ctx.scale(scale, scale);
+                                        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                                        drawn = true;
+                                    }
                                 }
 
-                                if (img.complete && img.naturalWidth > 0) {
-                                    const scale = (config.data?.scaleOverride || 1) * (visualLayer.scaleCurve === 'pulse' ? (1 + Math.sin(Date.now() / 100) * 0.1) : 1);
+                                if (!drawn) {
+                                    // Fallback Circle (if no sprite or sprite broken)
+                                    ctx.fillStyle = config?.animation?.primaryColor || '#ff00ff';
+                                    ctx.beginPath();
+                                    ctx.arc(0, 0, (p.radius || 0.2) * 32, 0, Math.PI * 2);
+                                    ctx.fill();
 
-                                    // Blend Mode
-                                    if (visualLayer.blendMode === 'ADDITIVE') ctx.globalCompositeOperation = 'lighter';
-                                    else if (visualLayer.blendMode === 'MULTIPLY') ctx.globalCompositeOperation = 'multiply';
-
-                                    ctx.scale(scale, scale);
-                                    ctx.drawImage(img, -img.width / 2, -img.height / 2);
-                                    drawn = true;
+                                    // Core
+                                    ctx.fillStyle = '#ffffff';
+                                    ctx.beginPath();
+                                    ctx.arc(0, 0, (p.radius || 0.2) * 16, 0, Math.PI * 2);
+                                    ctx.fill();
                                 }
+                                ctx.restore();
                             }
-
-                            if (!drawn) {
-                                // Fallback Circle (if no sprite or sprite broken)
-                                ctx.fillStyle = config?.animation?.primaryColor || '#ff00ff';
-                                ctx.beginPath();
-                                ctx.arc(0, 0, (p.radius || 0.2) * 32, 0, Math.PI * 2);
-                                ctx.fill();
-
-                                // Core
-                                ctx.fillStyle = '#ffffff';
-                                ctx.beginPath();
-                                ctx.arc(0, 0, (p.radius || 0.2) * 16, 0, Math.PI * 2);
-                                ctx.fill();
-                            }
-                            ctx.restore();
                         } else if (item.type === 'area_effect') {
                             const ae = item.data;
                             const s = camera.toScreen(ae.pos.x, ae.pos.y);
 
                             ctx.save();
+                            // Look up behavior for custom rendering
+                            const behaviorKey = SPELL_REGISTRY[ae.spellType]?.behaviorKey;
+                            const behavior = behaviorKey ? BEHAVIOR_REGISTRY[behaviorKey] : null;
+
+                            if (behavior && behavior.onRender) {
+                                behavior.onRender(ctx, ae, s.x, s.y);
+                                ctx.restore();
+                                return;
+                            }
+
                             ctx.translate(s.x, s.y);
 
                             if (ae.data?.subtype === 'PORTAL') {
@@ -1181,11 +1339,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                     // Render Atmosphere (Fireflies)
                     atmosphere.render(ctx, camera);
 
-                    // Projectiles (Moved to Z-Sort List)
-
-                    // VFX...
-                    // Use VfxRenderer for all
-                    // Cast to any because type mismatch between old/new but we standardized on VfxRenderer structure
+                    // VfxRenderer handles transient and persistent visual artifacts
                     VfxRenderer.render(ctx, camera, state.visualEffects as any[]);
 
                     // Texts...

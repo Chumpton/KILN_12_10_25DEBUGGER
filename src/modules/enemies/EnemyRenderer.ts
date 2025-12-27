@@ -159,6 +159,17 @@ export class EnemyRenderer {
                 ctx.lineTo(-3, 1);
                 ctx.closePath();
                 ctx.fill();
+
+                // Draw Stack Count
+                const stacks = enemy.shockStacks || 0;
+                if (stacks > 0) {
+                    ctx.shadowBlur = 0; // Clear shadow for text
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 10px monospace';
+                    ctx.textAlign = 'left';
+                    // Superscript X + count
+                    ctx.fillText(`x${stacks}`, 4, -4);
+                }
             }
 
             ctx.restore();

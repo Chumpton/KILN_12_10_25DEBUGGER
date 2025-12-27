@@ -1,4 +1,4 @@
-import { SpellDefinition } from '../../../types';
+import { SpellDefinition } from '../../../modules/spells/SpellRegistry';
 import { SpellEditorSession } from './SpellEditorTypes';
 import { ANIMATION_LIBRARY } from '../../../data/AnimationData'; // Import added
 
@@ -41,106 +41,60 @@ export class SpellEditorController {
     }
 
     /**
-     * Update spell element
+     * Update spell school (element)
      */
-    setSpellElement(element: string): void {
+    setSpellSchool(school: string): void {
         this.updateSpell({
             ...this.session.spell,
-            element: element as any,
-            spellKey: element as any
+            school: school as any
         });
     }
 
     /**
-     * Update cast time
+     * Update Base Stats
      */
+    updateBaseStats(stats: Partial<any>): void {
+        this.updateSpell({
+            ...this.session.spell,
+            baseStats: {
+                ...this.session.spell.baseStats,
+                ...stats
+            }
+        });
+    }
+
     setCastTime(castTime: number): void {
-        this.updateSpell({
-            ...this.session.spell,
-            castTime
-        });
+        this.updateBaseStats({ castTime });
     }
 
-    /**
-     * Update recovery time
-     */
-    setRecoveryTime(recoveryTime: number): void {
-        this.updateSpell({
-            ...this.session.spell,
-            recoveryTime
-        });
+    setRecoveryTime(cooldown: number): void {
+        this.updateBaseStats({ cooldown });
     }
 
-    /**
-     * Update projectile speed
-     */
-    setProjectileSpeed(speed: number): void {
-        if (!this.session.spell.projectile) return;
-
-        this.updateSpell({
-            ...this.session.spell,
-            projectile: {
-                ...this.session.spell.projectile,
-                speed
-            }
-        });
+    setProjectileSpeed(projectileSpeed: number): void {
+        this.updateBaseStats({ projectileSpeed });
     }
 
-    /**
-     * Update projectile gravity
-     */
     setProjectileGravity(gravity: number): void {
-        if (!this.session.spell.projectile) return;
-
         this.updateSpell({
             ...this.session.spell,
-            projectile: {
-                ...this.session.spell.projectile,
-                gravity
+            geometry: {
+                ...this.session.spell.geometry,
+                usesGravity: gravity > 0,
+                // If we want to store gravity strength, we might need a custom data field or check if geometry supports it. 
+                // Using 'arcHeight' as proxy or just boolean for now.
             }
         });
     }
 
-    /**
-     * Update projectile type
-     */
-    setProjectileType(type: string): void {
-        if (!this.session.spell.projectile) return;
-
+    // New: Update Geometry
+    updateGeometry(geo: Partial<any>): void {
         this.updateSpell({
             ...this.session.spell,
-            projectile: {
-                ...this.session.spell.projectile,
-                type: type as any
+            geometry: {
+                ...this.session.spell.geometry,
+                ...geo
             }
-        });
-    }
-
-    /**
-     * Update spawn offset
-     */
-    setSpawnOffset(offset: { x: number; y: number }): void {
-        if (!this.session.spell.projectile) return;
-
-        this.updateSpell({
-            ...this.session.spell,
-            projectile: {
-                ...this.session.spell.projectile,
-                spawnOffset: offset
-            }
-        });
-    }
-
-    /**
-     * Adjust spawn offset by delta (for dragging)
-     */
-    adjustSpawnOffset(delta: { x: number; y: number }): void {
-        if (!this.session.spell.projectile) return;
-
-        const current = this.session.spell.projectile.spawnOffset || { x: 0, y: 0 };
-        this.setSpawnOffset({
-            x: current.x + delta.x,
-            y: current.y + delta.y
         });
     }
 

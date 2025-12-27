@@ -117,8 +117,8 @@ export const createInitialPlayer = (options: CharacterCreationOptions = { name: 
         toNextLevel: 150, // Match (level * 100 * 1.5) formula
         currentSpell: SpellType.FIRE_FIREBALL, // Start with Fireball
         // UNLOCK ALL SPELLS FOR TESTING/MODDING
-        knownSpells: Object.values(SpellType) as SpellType[],
-        spellPoints: 999, // Infinite points to test upgrades
+        knownSpells: [SpellType.FIRE_FIREBALL],
+        spellPoints: 0, // Infinite points to test upgrades
         cooldowns: {}, // Initialize empty cooldown map
         hotbar: [
             SpellType.FIRE_FIREBALL,
@@ -136,12 +136,11 @@ export const createInitialPlayer = (options: CharacterCreationOptions = { name: 
         bombAmmo: 0,
         isMounted: false,
         coins: 0,
+        magicDust: 0,
+        spellUpgrades: {},
+        spellExperience: {},
         spellTalents: {
-            FIRE: { ignition: 0, blastRadius: 0, multiFlare: 0, pyromania: 0 },
-            ICE: { deepFreeze: 0, iciclePierce: 0, shatter: 0, frostbite: 0 },
-            LIGHTNING: { overload: 0, highVoltage: 0, chainReaction: 0, staticShock: 0 },
-            EARTH: { tremor: 0, heavyBoulder: 0, landslide: 0, aftershock: 0 },
-            WIND: { galeForce: 0, zephyrSpeed: 0, tailwind: 0, tornadoSize: 0 }
+            allocations: {} // New format
         },
         baseStats: baseStats,
         potions: {
@@ -153,7 +152,11 @@ export const createInitialPlayer = (options: CharacterCreationOptions = { name: 
         activeBuffs: {
             speedBoost: 0,
             rockAuraTimer: 0,
-            righteousFire: false
+            righteousFire: false,
+            stoneskin: 0,
+            thorns: 0,
+            deflection: 0,
+            morphTimer: 0
         },
         equipment: {
             HEAD: null,
@@ -211,7 +214,11 @@ export const createInitialPlayer = (options: CharacterCreationOptions = { name: 
             timer: 0,
             duration: 0,
             targetPos: { x: 0, y: 0 },
-            hitTargets: []
+            hitTargets: [],
+            tickTimer: 0,
+            startFrame: 0,
+            endFrame: 0,
+            trail: []
         },
         attack: {
             isAttacking: false,
@@ -226,13 +233,15 @@ export const createInitialPlayer = (options: CharacterCreationOptions = { name: 
             comboWindowOpen: false,
             inputBuffer: false
         },
-        lockedTargetId: null
+        lockedTargetId: null,
+        buffs: [],
+        morph: 'NONE'
     };
 };
 
 export const createEnemy = (
     pos: Vector2,
-    type: 'melee' | 'caster' | 'boss' | 'ant' | 'golem' | 'spitter' | 'dummy',
+    type: 'melee' | 'caster' | 'boss' | 'ant' | 'golem' | 'spitter' | 'dummy' | 'wolf',
     difficultyFactor: number,
     playerLevel: number,
     isElite: boolean = false

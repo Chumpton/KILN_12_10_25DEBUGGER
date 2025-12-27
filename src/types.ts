@@ -18,9 +18,12 @@ export enum SpellType {
   FIRE_LAVA_LASH = 'FIRE_LAVA_LASH',
   FIRE_FLAMEBURST = 'FIRE_FLAMEBURST',
   FIRE_DETONATE = 'FIRE_DETONATE',
+  FIRE_CIRCLE = 'FIRE_CIRCLE',
 
   // --- ICE ---
   ICE_FROST_BOLT = 'ICE_FROST_BOLT',
+  ICE_FROST_BREATH = 'FROST_BREATH',
+  FROST_BREATH = 'FROST_BREATH', // Support inconsistent naming in spec
   ICE_FROST_PULSE = 'ICE_FROST_PULSE',
   ICE_GLACIAL_SPIKE = 'ICE_GLACIAL_SPIKE',
   ICE_FROZEN_NOVA = 'ICE_FROZEN_NOVA',
@@ -46,6 +49,7 @@ export enum SpellType {
   LIGHTNING_ARC_LIGHTNING = 'LIGHTNING_ARC_LIGHTNING',
 
   // --- EARTH ---
+  EARTH_STONE_SHIELD = 'EARTH_STONE_SHIELD',
   EARTH_STONE_SHOT = 'EARTH_STONE_SHOT',
   EARTH_ROCK_CRASH = 'EARTH_ROCK_CRASH',
   EARTH_EARTHEN_PILLAR = 'EARTH_EARTHEN_PILLAR',
@@ -74,6 +78,7 @@ export enum SpellType {
   TELEPORT = 'TELEPORT',
   FLAMEBLAST = 'FLAMEBLAST',
   ARCANE_PORTAL = 'ARCANE_PORTAL',
+  GRAVITY_WELL = 'GRAVITY_WELL',
 
   // Keep legacy for compatibility during refactor if needed (or map them later)
   // For now, I will assume we are doing a hard cutover as requested.
@@ -125,11 +130,7 @@ export interface EarthTalents { tremor: number; heavyBoulder: number; landslide:
 export interface WindTalents { galeForce: number; zephyrSpeed: number; tailwind: number; tornadoSize: number; }
 
 export interface PlayerSpellTalents {
-  FIRE: FireTalents;
-  ICE: IceTalents;
-  LIGHTNING: LightningTalents;
-  EARTH: EarthTalents;
-  WIND: WindTalents;
+  allocations: Record<string, number>; // Key: "spellId:talentId" -> currentRank
 }
 
 export interface PlayerBaseStats {
@@ -212,7 +213,19 @@ export interface PlayerVisuals {
 }
 
 
+
 export type MorphType = 'NONE' | 'WOLF' | 'BEAR' | 'SHADOW';
+
+export interface Buff {
+  id: string;
+  name: string;
+  icon: string;
+  duration: number; // milliseconds
+  maxDuration: number;
+  stacks?: number;
+  description?: string;
+  type: 'buff' | 'debuff';
+}
 
 export interface Player extends Entity {
   name: string; // Added Name
@@ -248,6 +261,9 @@ export interface Player extends Entity {
   bombAmmo: number;
   isMounted: boolean;
   coins: number;
+  magicDust: number; // Global Resource
+  spellUpgrades: Record<string, number>; // SpellID -> Level
+  spellExperience: Record<string, number>; // SpellID -> Current Dust Progress
   potions: {
     health: number;
     mana: number;
@@ -264,6 +280,9 @@ export interface Player extends Entity {
     deflection: number; // Frames
     morphTimer: number; // Frames
   };
+  buffs: Buff[]; // New UI Buffs system
+
+
   // Loot System
   equipment: {
     HEAD: EquipmentItem | null;
@@ -301,8 +320,12 @@ export interface Player extends Entity {
     duration: number;
     targetPos: Vector2;
     hitTargets: string[]; // Track enemies hit during a swing to apply damage once
+    // New Channeling Fields
+    tickTimer: number;   // For defining tick rate (e.g. every 6 frames)
+    startFrame: number;  // Absolute frame start
+    endFrame: number;    // Absolute frame end (for auto-stop)
     // Optional trail points for melee swings (world-space positions used for visual trail)
-    trail?: Vector2[];
+    trail: { x: number; y: number }[]; // Changed type and made non-optional
     // Channeling
     isChanneling?: boolean;
     channelStart?: number;
@@ -375,6 +398,7 @@ export interface Enemy extends Entity {
 
   // Shock
   shockTimer: number;
+  shockStacks?: number;
 
   // AI State
   spawnPos: Vector2;
@@ -404,12 +428,19 @@ export interface Enemy extends Entity {
     leftArm?: { x: number; y: number; w: number; h: number };
     rightArm?: { x: number; y: number; w: number; h: number };
   };
+
+  // Status Effects
+  status?: Record<string, any>; // Generic status bag (shockStacks etc)
 }
 
 export interface Projectile extends Entity {
+  spawnerId?: string; // ID of entity that created this
   spellType: SpellType;
   damage: number;
-  duration: number; // Frames to live
+  duration: number; // Frames to live (Legacy?)
+  life?: number; // Current life
+  maxLife?: number; // Max life
+  // data?: any; // REMOVED DUPLICATE
   hitList: string[]; // For piercing: track enemies already hit
   isShrapnel?: boolean; // For fire: prevent recursive explosions
   targetPos?: Vector2; // For bomb tossing
@@ -549,6 +580,7 @@ export interface GameState {
   areaEffects: AreaEffect[];
   isWorldEditorActive?: boolean; // World editor mode flag
   worldObjects: WorldObject[]; // Placed objects from World Editor
+  frame: number;
 }
 
 export interface Renderable {

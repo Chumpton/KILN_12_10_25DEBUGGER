@@ -104,10 +104,6 @@ export const getTileAt = (x: number, y: number): TileData => {
     const treeDensityCheck = pseudoRandom(chunkX * 0.7, chunkY * 1.3);
     const shouldSpawnChunkTree = treeDensityCheck > 0.82; // ~18% chance
 
-    // Check Safe Zone
-    const distToSafeZone = Math.sqrt(Math.pow(x - HEARTHSTONE_POS.x, 2) + Math.pow(y - HEARTHSTONE_POS.y, 2));
-    const inSafeZone = distToSafeZone < SAFE_ZONE_RADIUS;
-
     // Check House Zone
     const distToHouse = Math.sqrt(Math.pow(x - HOUSE_POS.x, 2) + Math.pow(y - HOUSE_POS.y, 2));
     const inHouseZone = distToHouse < HOUSE_RADIUS;
@@ -122,7 +118,7 @@ export const getTileAt = (x: number, y: number): TileData => {
     let detailType = 'none'; // 'stone', 'puddle', 'none'
     let swayFactor = 1.0;
 
-    if (!isRoad && !hasTree && !inHouseZone && !inSafeZone) {
+    if (!isRoad && !hasTree && !inHouseZone) {
 
         let shouldSpawnFoliage = false;
 

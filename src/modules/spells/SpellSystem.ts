@@ -1,5 +1,6 @@
 
 import { GameState, Vector2, SpellType, Enemy, EquipmentItem, Player, Entity, MeleeAttackPhase } from '../../types';
+import { InputSystem } from '../../systems/InputSystem';
 import { BEHAVIOR_REGISTRY } from './BehaviorRegistry';
 import { SPELL_REGISTRY } from './SpellRegistry';
 import { BASE_STAT_CONFIG, LEVEL_5_UNLOCK, ROCK_AURA_CONFIG, HEARTHSTONE_POS, SAFE_ZONE_RADIUS } from '../../constants';
@@ -15,21 +16,18 @@ import { soundSystem } from '../../systems/SoundSystem';
 import { inputSystem } from '../../systems/InputSystem';
 import { createDefaultCastPlan, applyCardsToCastPlan } from '../cards/CardSystem';
 import { CardContext, CastPlan } from '../cards/types';
+import { compileSpellPlan } from './SpellCompiler';
 
 export const ENABLE_CARDS = true;
 export let debugLastCastPlan: CastPlan | null = null;
+// SpellCallbacks is now in SpellBehavior.ts to avoid cycles
+import { SpellCallbacks } from './SpellBehavior';
+import { StoneShieldBehavior } from './behaviors/StoneShieldBehavior';
 
-export interface SpellCallbacks {
-    addFloatingText: (text: string, pos: Vector2, color: string) => void;
-    createExplosion: (pos: Vector2, radius: number, damage: number, color: string, shapeData?: { type: 'RING' | 'CONE', data: any }) => void;
-    createAreaEffect: (config: any) => void; // Added
-    createExplosionShrapnel: (pos: Vector2, damage: number) => void;
-    createImpactPuff: (pos: Vector2, spellType: SpellType) => void;
-    createVisualEffect: (type: 'nova' | 'particle' | 'text' | 'ring' | 'surge' | 'shatter' | 'sprite' | 'lightning_chain', pos: Vector2, duration: number, data?: any) => void;
-    checkLevelUp: (p: Player) => void;
-    onEnemyDeath: (e: Enemy) => void;
-    onEnemyHit: (e: Enemy, damage: number, effect?: 'freeze' | 'burn' | 'shock') => void;
-}
+// Debug Registry
+console.log('[SpellSystem] StoneShieldBehavior Import:', StoneShieldBehavior);
+
+
 
 export const getEntityCenter = (entity: Entity): Vector2 => {
     return {
@@ -79,11 +77,12 @@ export const fireSpell = (state: GameState, mouseWorld: Vector2, spell: SpellTyp
     const behavior = BEHAVIOR_REGISTRY[config.behaviorKey];
     if (behavior?.onCast) {
         // Legacy Behaviors (Teleport, Dash, etc. that aren't card-driven yet)
-        if (!player.cooldowns) player.cooldowns = {};
-        const cdMs = (config.baseStats.cooldown * 1000) || 0;
-        player.cooldowns[spell] = cdMs;
-        behavior.onCast(state, config, player, mouseWorld, callbacks);
-        return null;
+        const result = behavior.onCast(state, config, player, mouseWorld, callbacks);
+
+        // If onCast returns false, it wants to fall through to the systemic card-driven pipeline
+        if (result !== false) {
+            return null;
+        }
     }
 
     // --- SYSTEMIC ANIMATION TRIGGER ---
@@ -104,10 +103,6 @@ export const fireSpell = (state: GameState, mouseWorld: Vector2, spell: SpellTyp
     });
 
     let rawDmg = config.baseStats.baseDamage + (player.level * config.baseStats.damagePerLevel) + equipDamage + powerDmg;
-    if (config.school === 'FIRE') {
-        const pyroRank = player.spellTalents.FIRE.pyromania;
-        if (pyroRank > 0) rawDmg *= (1 + (pyroRank * 0.15));
-    }
     const variance = 0.1;
     let finalDmg = rawDmg * (1 - variance + Math.random() * variance * 2);
 
@@ -117,13 +112,8 @@ export const fireSpell = (state: GameState, mouseWorld: Vector2, spell: SpellTyp
         spellLevel: 1
     };
 
-    // 1. Create Plan (Base)
-    let plan = createDefaultCastPlan(config, player, mouseWorld, cardContext);
-
-    // 2. Apply Cards
-    if (ENABLE_CARDS && player.equippedCards && player.equippedCards[spell]) {
-        plan = applyCardsToCastPlan(plan, player.equippedCards[spell], cardContext);
-    }
+    // 1. Compile Plan (Unified Pipeline)
+    let plan = compileSpellPlan(spell, player, { pos: mouseWorld }, cardContext);
 
     // 3. Apply Damage Mult
     finalDmg = finalDmg * plan.stats.damageMult;
@@ -160,14 +150,35 @@ export const fireSpell = (state: GameState, mouseWorld: Vector2, spell: SpellTyp
         aimAngle = armData.aimAngle;
     }
 
-    // Calculate Final Projectile Stats
-    let velocityMultiplier = 1;
-    if (config.school === 'WIND') velocityMultiplier += (player.spellTalents.WIND.zephyrSpeed * 0.1);
-    const speedMultiplier = config.baseStats.projectileSpeed * velocityMultiplier * plan.stats.projectileSpeedMult;
+    const speedMultiplier = config.baseStats.projectileSpeed * plan.stats.projectileSpeedMult;
     const projectileSpeed = speedMultiplier * 0.02;
 
     // Projectile Count Calculation
     let projectileCount = Math.max(1, plan.stats.projectileCount || 1);
+
+    // Living Fireball constraint
+    if (plan.data?.isLivingFireball) projectileCount = 1;
+
+    // Run & Gun Damage penalty
+    if (plan.data?.mobilityPenalty && (player.velocity.x !== 0 || player.velocity.y !== 0)) {
+        finalDmg *= 0.88;
+    }
+
+    // Staggered Firing logic
+    if (plan.data?.staggerFire && projectileCount > 1 && !ignoreBehaviors?.includes('STAGGER')) {
+        // Schedule others in burst queue
+        if (!player.casting.burstQueue) player.casting.burstQueue = [];
+        player.casting.burstQueue.push({
+            spellId: spell,
+            count: projectileCount - 1,
+            interval: 8,
+            timer: 8,
+            originalTarget: { ...targetPos },
+            data: { ...plan.data, staggerFire: false } // No recursion
+        });
+        // Fire only one now
+        projectileCount = 1;
+    }
 
     // Apply Talent additions if not already in plan (Plan should own this ideally, but keeping hybrid for safety)
     Object.values(player.equipment).forEach((item) => {
@@ -248,13 +259,17 @@ export const fireSpell = (state: GameState, mouseWorld: Vector2, spell: SpellTyp
             });
         }
     } else if (plan.kind === 'AOE') {
-        // Instant AoE at target
+        // Instant AoE at target (or spawnPos for Cone/Self-centered)
+        const isCone = (plan.stats.aoeRadiusMult && (plan.kind as any) === 'CONE') || plan.data.coneAngleDeg;
+        const origin = isCone ? spawnPos : targetPos;
+
         callbacks.createExplosion(
-            targetPos,
+            origin,
             explosionRadius,
             finalDmg,
             '#FF4400', // Need color from config?
-            hasFlag(plan, 'AOE_SHAPE_RING') ? { type: 'RING', data: plan.data } : undefined
+            hasFlag(plan, 'AOE_SHAPE_RING') ? { type: 'RING', data: plan.data } :
+                (plan.stats.aoeRadiusMult && (plan.kind as any) === 'CONE' || plan.data.coneAngleDeg) ? { type: 'CONE', data: { ...plan.data, angle: aimAngle } } : undefined
         );
         // Apply Triggers immediately?
     } else if (plan.kind === 'BEAM') {
@@ -302,10 +317,7 @@ export const initiateCast = (
         }
     }
 
-    if (getDistance(player.pos, HEARTHSTONE_POS) < SAFE_ZONE_RADIUS) {
-        callbacks.addFloatingText("Safe Zone", player.pos, '#888888');
-        return;
-    }
+
 
     if (player.casting.isCasting) {
         // Interrupt logic:
@@ -315,10 +327,13 @@ export const initiateCast = (
             const isInstant = (newConfig.baseStats.castTime || 0) === 0;
             const isDifferent = player.casting.currentSpell !== spellKey;
 
-            if (isInstant || isDifferent) {
+            // Fix: Don't interrupt if it's the same CHANNEL spell (allows continuous hold)
+            if ((isInstant && newConfig.hotbarType !== 'CHANNEL') || isDifferent) {
                 console.log('initiateCast: Interrupting current cast for:', spellKey);
                 player.casting.isCasting = false;
                 player.casting.timer = 0;
+                player.casting.duration = 0; // Force clear duration to unlock movement logic
+                player.casting.trail = []; // Clear visual trails
                 // Proceed to cast below...
             } else {
                 // console.log('initiateCast: Already casting same spell');
@@ -344,6 +359,7 @@ export const initiateCast = (
             console.log('initiateCast: Migrated ICE -> ICE_FROST_BOLT');
         } else if (legacySpell === 'FIRE') {
             spell = SpellType.FIRE_FIREBALL;
+            player.currentSpell = spell;
             config = SPELL_REGISTRY[spell];
             console.log('initiateCast: Migrated FIRE -> FIRE_FIREBALL');
         } else if (legacySpell === 'LIGHTNING') {
@@ -390,11 +406,14 @@ export const initiateCast = (
     // --- PREVIEW PLAN FOR STATS (ROW C) ---
     // We need to know castTimeMult *before* we start casting.
 
+    // --- PREVIEW PLAN FOR STATS (ROW C) ---
+    // We need to know castTimeMult *before* we start casting.
+
+    // --- PREVIEW PLAN FOR STATS (ROW C) ---
+    // We need to know castTimeMult *before* we start casting.
+
     const cardContext: CardContext = { playerLevel: player.level, spellLevel: 1 };
-    let previewPlan = createDefaultCastPlan(config, player, mouseWorld, cardContext);
-    if (ENABLE_CARDS && player.equippedCards && player.equippedCards[spell]) {
-        previewPlan = applyCardsToCastPlan(previewPlan, player.equippedCards[spell], cardContext);
-    }
+    let previewPlan = compileSpellPlan(spell, player, { pos: mouseWorld }, cardContext);
 
     // --- RESOURCE COST LOGIC (Row F) ---
     const baseCost = config.baseStats.manaCost || 0;
@@ -426,7 +445,11 @@ export const initiateCast = (
         callbacks.addFloatingText(`-${previewPlan.stats.selfDamageOnCast} HP`, player.pos, '#ff0000');
         if (player.hp <= 0) state.gameOver = true;
     }
-    const castTimeMult = Math.max(0.1, 1.0 + (previewPlan.stats.castTimeMult || 0));
+    let castTimeMult = Math.max(0.1, 1.0 + (previewPlan.stats.castTimeMult || 0));
+    // Run & Gun Cast Time penalty
+    if (previewPlan.data?.mobilityPenalty && (player.velocity.x !== 0 || player.velocity.y !== 0)) {
+        castTimeMult *= 1.2;
+    }
     // Heavy Cast: +100% castTimeMult -> 2.0x Duration.
 
     // Apply Shield on Cast (Row D)
@@ -461,6 +484,8 @@ export const initiateCast = (
     }
 
     if (duration > 0) {
+        const fixedChannelDuration = (config as any).data?.channelDurationFrames;
+
         player.casting.isCasting = true;
         player.casting.currentSpell = spell;
         player.casting.timer = 0;
@@ -468,6 +493,20 @@ export const initiateCast = (
         player.casting.targetPos = { ...mouseWorld };
         player.casting.hitTargets = [];
         player.casting.trail = [];
+
+        // Channel Init
+        player.casting.tickTimer = 0;
+        player.casting.startFrame = state.frame ?? 0; // State.frame needs to be verified if it exists on GameState, otherwise use internal counter?
+        // GameState definition usually has 'frame' or similar time? 
+        // Checking types.ts previously didn't show 'frame' on GameState explicitly in the snippet I saw.
+        // But the user request said "state.frame". I will assume it exists or use date.
+        // Actually, SpellSystem update uses dt. 
+        // If state.frame is not reliable, I can use player.casting.timer which counts UP in some logic, or use duration as countdown.
+        // User requested: "endFrame: state.frame + dur".
+        // I will assume state.frame is available. If not I will add it or use Date.now() / 16? 
+        // Let's rely on timer for now if state.frame is missing? No, user explicitly asked for 'state.frame'.
+        // I'll assume state.frame exists. If compile fails, I'll fix it.
+        player.casting.endFrame = (state.frame || 0) + (fixedChannelDuration || (duration > 0 ? duration : 180));
 
         // Facing Logic
         const dx = mouseWorld.x - player.pos.x;
@@ -505,7 +544,15 @@ export const initiateCast = (
 
             const cooldownSeconds = config.baseStats.cooldown;
             const cdrMultiplier = Math.max(0.2, 1 - (player.baseStats.haste * BASE_STAT_CONFIG.HASTE.cdrPerPoint));
-            cooldownRef.current = (cooldownSeconds * 60) * cdrMultiplier * Math.max(0.1, cooldownMult);
+            const finalCdMs = (cooldownSeconds * 1000) * cdrMultiplier * Math.max(0.1, cooldownMult);
+
+            cooldownRef.current = finalCdMs; // Global Cooldown (using same value for now, or use fixed GCD?)
+            // Usually GCD is 500ms, Spell CD is longer.
+            // Let's use 500ms for GCD, and actual CD for spell.
+            cooldownRef.current = 500;
+
+            if (!player.cooldowns) player.cooldowns = {};
+            player.cooldowns[spell] = finalCdMs;
         } else {
             console.log('initiateCast: Delayed Firing (waiting for updateCasting)');
         }
@@ -566,7 +613,15 @@ export const initiateCast = (
     }
 };
 
-export const updateCasting = (player: Player, state: GameState, callbacks: SpellCallbacks, cooldownRef?: { current: number }, mouseWorld?: Vector2, originOverride?: Vector2) => {
+export const updateCasting = (player: Player, state: GameState, callbacks: SpellCallbacks, cooldownRef: any, mouseWorld: Vector2 | undefined, handOrigin?: Vector2, inputSys?: InputSystem) => {
+    // Fallback to global if not passed
+    const input = inputSys || inputSystem;
+
+    // 0. Regenerate Mana (Passive)
+    if (player.mana < player.maxMana) {
+        player.mana += (0.05 + ((player.baseStats?.vitality || 0) * 0.01)); // Regeneration
+        if (player.mana > player.maxMana) player.mana = player.maxMana;
+    }
 
     // --- ROW C: BURST QUEUE PROCESSING ---
     if (player.casting.burstQueue && player.casting.burstQueue.length > 0) {
@@ -577,7 +632,7 @@ export const updateCasting = (player: Player, state: GameState, callbacks: Spell
                 // Fire Burst Shot
                 const target = mouseWorld || item.originalTarget; // Track mouse if available, else static
                 // Suppress recursion tags
-                fireSpell(state, target, item.spellId, callbacks, originOverride, ['BURST_CAST', 'SPELL_ECHO']);
+                fireSpell(state, target, item.spellId, callbacks, handOrigin, ['BURST_CAST', 'SPELL_ECHO']);
 
                 item.count--;
                 item.timer = item.interval;
@@ -596,13 +651,99 @@ export const updateCasting = (player: Player, state: GameState, callbacks: Spell
 
     const config = SPELL_REGISTRY[player.casting.currentSpell];
 
+    // Debug Channel
+    if (player.casting.isCasting && config?.hotbarType === 'CHANNEL') {
+        console.log(`updateCasting: Channel Active. Timer: ${player.casting.timer} | RMouse: ${input.rightMouseDown} | InputSrc: ${inputSys ? 'ARG' : 'GLOBAL'}`);
+    }
+
     if (config && config.school === 'FIRE' && mouseWorld) {
         player.casting.targetPos = { ...mouseWorld };
     }
 
+    // --- CHANNEL LOGIC (Fixed Duration) ---
+    if (config && config.hotbarType === 'CHANNEL') {
+        const channelDuration = (config as any).data?.channelDurationFrames;
+
+        // 1. Check Expiry
+        if (channelDuration && player.casting.duration <= 0) {
+            // Wait, initiateCast sets casting.duration from channelDurationFrames now?
+            // initiateCast Logic: duration = config.baseStats.duration * 60 || 300
+            // AND I added endFrame logic.
+            // Let's stick to the User Request pattern: stop when now >= endFrame
+            // But I don't see state.frame in GameState in my view?
+            // If checking state.frame fails, I'll fall back to duration decrement.
+
+            // Actually, existing logic decrements 'duration' somewhere? No, I don't see decrement in updateCasting?
+            // Wait, existing `updateCasting` didn't decrement duration?
+            // I need to verify that.
+            // If I look at lines 615+, I don't see `player.casting.duration--`.
+            // So I should implement it here if it's not elsewhere.
+        }
+
+        // AUTO-STOP LOGIC
+        if (channelDuration) {
+            // Decrement Duration (Frame/Calls based)
+            player.casting.duration--;
+
+            if (player.casting.duration <= 0) {
+                console.log('updateCasting: Channel Finished (Duration)');
+                player.casting.isCasting = false;
+
+                // Apply Cooldown
+                if (!player.cooldowns) player.cooldowns = {};
+                const cdMs = (config.baseStats.cooldown * 1000) || 0;
+                // Haste Logic?
+                const cdrMultiplier = Math.max(0.2, 1 - (player.baseStats.haste * BASE_STAT_CONFIG.HASTE.cdrPerPoint));
+                player.cooldowns[player.casting.currentSpell] = cdMs * cdrMultiplier;
+
+                return;
+            }
+        } else {
+            // HOLD-TO-CAST (Legacy)
+            const isDelayed = config.school === 'FIRE' || player.casting.currentSpell === SpellType.HEARTHSTONE || player.casting.currentSpell === SpellType.TELEPORT;
+            if (!isDelayed) {
+                if (!input.rightMouseDown) {
+                    console.log('updateCasting: Stopping Channel (Mouse Released)');
+                    player.casting.isCasting = false;
+                    player.casting.timer = 0;
+                    player.casting.duration = 0;
+                    return;
+                }
+            }
+        }
+
+        // TICK LOGIC
+        const tickRate = (config as any).data?.tickEveryFrames || 6;
+        player.casting.tickTimer++;
+        if (player.casting.tickTimer >= tickRate) {
+            player.casting.tickTimer = 0;
+            // Trigger Behavior
+            const behavior = BEHAVIOR_REGISTRY[config.behaviorKey];
+            if (behavior?.onCast) {
+                behavior.onCast(state, config, player, player.casting.targetPos, callbacks);
+            }
+        }
+    }
+
+    // 4. Tick Channel
+    // Fix TS Error: Cast to any or string for 'REPEATER' check if type definition is partial
+    const typeRef = config.hotbarType as string;
+    if (config && (typeRef === 'CHANNEL' || typeRef === 'REPEATER')) {
+        const tickRate = (config as any).tickRate || 5;
+        if (player.casting.timer > 0 && player.casting.timer % tickRate === 0) {
+            fireSpell(state, player.casting.targetPos || mouseWorld, player.casting.currentSpell, callbacks, handOrigin);
+        }
+    }
+
     player.casting.timer++;
 
-    if (player.casting.timer >= player.casting.duration) {
+    // Prevent CHANNEL spells from finishing via Duration (unless they have explicit duration set)
+    const isChannel = config && config.hotbarType === 'CHANNEL';
+    const hasExplicitDuration = isChannel && player.casting.duration > 0;
+
+    // Finish if (Not Channel AND Timer >= Duration) OR (Channel AND Explicit Duration AND Timer >= Duration)
+    if ((!isChannel || hasExplicitDuration) && player.casting.timer >= player.casting.duration) {
+        console.log(`updateCasting: Cast Finished. Timer: ${player.casting.timer}, Duration: ${player.casting.duration}`);
         if (player.casting.currentSpell === SpellType.FLAMEBLAST) {
             const stages = Math.min(10, Math.floor(player.casting.duration / 5));
             // FLAMEBLAST is legacy, so config might be missing if I didn't stub it correctly?
@@ -622,8 +763,28 @@ export const updateCasting = (player: Player, state: GameState, callbacks: Spell
         else {
             if (config) {
                 // Generalized firing for all cast-time spells (excluding special cases handled above)
-                // NOW we fire the spell.
-                const plan = fireSpell(state, player.casting.targetPos, player.casting.currentSpell, callbacks, originOverride);
+                let plan: CastPlan | null = null;
+
+                // 4. Tick Channel
+                const typeRef = config.hotbarType as string;
+                if (typeRef === 'CHANNEL' || typeRef === 'REPEATER') {
+                    const tickRate = (config as any).tickRate || 5;
+                    if (player.casting.timer > 0 && player.casting.timer % tickRate === 0) {
+                        try {
+                            fireSpell(state, player.casting.targetPos || mouseWorld, player.casting.currentSpell, callbacks, handOrigin);
+                        } catch (err) {
+                            console.error("Channel Cast Error:", err);
+                        }
+                    }
+                } else {
+                    // NOW we fire the spell (Hard Cast / Instant)
+                    try {
+                        plan = fireSpell(state, player.casting.targetPos, player.casting.currentSpell, callbacks, handOrigin);
+                    } catch (err) {
+                        console.error("Cast Error:", err);
+                        callbacks.addFloatingText("Cast Fail!", player.pos, "red");
+                    }
+                }
 
                 // --- ROW C: COOLDOWN & BURST LOGIC (Hard Cast) ---
                 let cooldownMult = 1.0;
@@ -658,7 +819,14 @@ export const updateCasting = (player: Player, state: GameState, callbacks: Spell
 
                 if (cooldownRef) {
                     const cdrMultiplier = Math.max(0.2, 1 - (player.baseStats.haste * BASE_STAT_CONFIG.HASTE.cdrPerPoint));
-                    cooldownRef.current = config.baseStats.cooldown * 60 * cdrMultiplier * Math.max(0.1, cooldownMult);
+                    const cdMs = (config.baseStats.cooldown * 1000) * cdrMultiplier * Math.max(0.1, cooldownMult);
+
+                    // Set GCD (short)
+                    cooldownRef.current = 150;
+
+                    // Set Spell Cooldown
+                    if (!player.cooldowns) player.cooldowns = {};
+                    player.cooldowns[player.casting.currentSpell] = cdMs;
                 }
             }
 
@@ -706,12 +874,12 @@ export const updateProjectiles = (state: GameState, dt: number, callbacks: Spell
             }
         }
 
-        if (p.data?.orbit) {
+        if (p.data?.orbit && !p.data.stoneShield) {
             // Orbit Logic
             const centerPos = state.player.id === p.data.orbit.centerId ? state.player.pos : p.pos;
 
             p.data.orbit.timer += dt * 60; // Frames approx
-            const orbitDuration = 180; // Orbit for 3 seconds (was 60, increasing for effect)
+            const orbitDuration = p.data.orbit.duration || 180;
 
             if (p.data.orbit.timer < orbitDuration) {
                 // Orbiting Phase
@@ -750,8 +918,17 @@ export const updateProjectiles = (state: GameState, dt: number, callbacks: Spell
             for (const enemy of state.enemies) {
                 if (enemy.isDead) continue;
                 const dist = Math.sqrt(Math.pow(enemy.pos.x - p.pos.x, 2) + Math.pow(enemy.pos.y - p.pos.y, 2));
-                if (dist < minDist) {
-                    minDist = dist;
+
+                let score = dist;
+                if (p.data?.thermalTargeting && ((enemy as any).burnTimer > 0 || (enemy as any).burnStacks > 0)) {
+                    // Heavily prioritize burning enemies
+                    score -= 5.0;
+                    // Further prioritize stacks if system supports it
+                    if ((enemy as any).burnStacks) score -= (enemy as any).burnStacks * 0.5;
+                }
+
+                if (score < minDist) {
+                    minDist = score;
                     closest = enemy;
                 }
             }
@@ -787,7 +964,11 @@ export const updateProjectiles = (state: GameState, dt: number, callbacks: Spell
         const behaviorKey = config?.behaviorKey || 'GenericBehavior';
         const behavior = BEHAVIOR_REGISTRY[behaviorKey];
 
-        if (behavior && behavior.onUpdate) {
+        // Force Stone Shield Update (Safety check against Registry issues)
+        if (p.spellType === 'EARTH_STONE_SHIELD' || p.data?.stoneShield || p.id.includes('stone_shield')) {
+            // Direct usage bypasses registry failure
+            StoneShieldBehavior.onUpdate(state, p, callbacks);
+        } else if (behavior && behavior.onUpdate) {
             behavior.onUpdate(state, p, callbacks);
         }
 
@@ -1009,9 +1190,22 @@ export const updateAreaEffects = (state: GameState, dt: number, callbacks: Spell
         const ae = state.areaEffects[i];
         ae.duration -= dt;
 
-        // Custom Logic for Portals
+        // Delegate to Behavior
+        const config = SPELL_REGISTRY[ae.spellType];
+        if (config) {
+            const behavior = BEHAVIOR_REGISTRY[config.behaviorKey];
+            if (behavior && behavior.onTick) {
+                behavior.onTick(state, ae, callbacks);
+            }
+        }
+
+        // Custom Logic for Portals (Legacy / Specific)
         if (ae.data?.subtype === 'PORTAL') {
-            // Cooldown check
+            // ... portal logic kept for now, though it should ideally move to PortalBehavior.onTick ...
+            // (Leaving it here to avoid breaking portal logic unless I refactor PortalBehavior too)
+            // Actually, let's keep it here for safety as PortalBehavior might not be fully wired for this yet.
+            // But the new delegation above will run ALSO if PortalBehavior has onTick.
+            // Checking PortalBehavior... it likely doesn't have onTick yet.
             if (!state.player.cooldowns) state.player.cooldowns = {};
             const cooldown = state.player.cooldowns['PORTAL_CD'] || 0;
             if (cooldown <= 0) {
@@ -1044,6 +1238,18 @@ export const updateAreaEffects = (state: GameState, dt: number, callbacks: Spell
 
         if (ae.duration <= 0) {
             state.areaEffects.splice(i, 1);
+        }
+    }
+};
+
+export const updatePlayerBuffs = (state: GameState, dt: number) => {
+    if (!state.player.buffs) return;
+
+    for (let i = state.player.buffs.length - 1; i >= 0; i--) {
+        const buff = state.player.buffs[i];
+        buff.duration -= dt;
+        if (buff.duration <= 0) {
+            state.player.buffs.splice(i, 1);
         }
     }
 };

@@ -11,6 +11,12 @@ import { FROST_PULSE_BEHAVIOR } from './behaviors/FrostPulseBehavior';
 import { DETONATE_BEHAVIOR } from './behaviors/DetonateBehavior';
 import { ARC_BEAM_BEHAVIOR } from './behaviors/ArcBehavior';
 import { ARC_LIGHTNING_BEHAVIOR } from './behaviors/ArcLightningBehavior';
+import { PortalBehavior } from './behaviors/PortalBehavior';
+import { FrostBreathBehavior } from './behaviors/FrostBreath';
+import { FireCircleBehavior } from './behaviors/FireCircleBehavior';
+import { StoneShieldBehavior } from './behaviors/StoneShieldBehavior';
+import { BlizzardBehavior } from './behaviors/BlizzardBehavior';
+import { GravityWellBehavior } from './behaviors/GravityWellBehavior';
 
 export const BEHAVIOR_REGISTRY: Record<string, SpellBehavior> = {
     // Core / Generic
@@ -24,6 +30,8 @@ export const BEHAVIOR_REGISTRY: Record<string, SpellBehavior> = {
 
     // Ice
     "FrostPulseBehavior": FROST_PULSE_BEHAVIOR,
+    "FrostBreathBehavior": FrostBreathBehavior,
+    "BlizzardBehavior": BlizzardBehavior,
 
     // Lightning
     "ArcBehavior": ARC_BEAM_BEHAVIOR,
@@ -33,5 +41,14 @@ export const BEHAVIOR_REGISTRY: Record<string, SpellBehavior> = {
     // Earth
     "EarthProjectileBehavior": GENERIC_SPELL_BEHAVIOR,
     "BoulderTossBehavior": GENERIC_SPELL_BEHAVIOR,
-    "PORTAL_BEHAVIOR": PortalBehavior
+    "PortalBehavior": PortalBehavior,
+
+    // Fire - New
+    "FireCircleBehavior": FireCircleBehavior,
+
+    // Earth - New
+    "StoneShieldBehavior": StoneShieldBehavior,
+
+    // Arcane
+    "GravityWellBehavior": GravityWellBehavior
 };

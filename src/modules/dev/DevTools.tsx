@@ -4,6 +4,7 @@ import { spawnEnemy } from '../enemies/EnemySystem';
 import { WorldEditor } from './WorldEditor';
 import { ProjectileEditor } from './ProjectileEditor';
 import { SpellEditor } from './SpellEditor';
+import { runVerificationSuite } from '../../systems/VerificationSystem';
 
 interface DevToolsProps {
     gameStateRef: React.MutableRefObject<GameState | undefined>;
@@ -208,6 +209,7 @@ export const DevTools: React.FC<DevToolsProps> = ({ gameStateRef }) => {
                     onClick={() => {
                         setIsSpellEditorActive(!isSpellEditorActive);
                         if (isWorldEditorActive) setIsWorldEditorActive(false); // Exclusive
+                        if (isProjectileEditorActive) setIsProjectileEditorActive(false);
                     }}
                     style={{
                         ...btnStyle,
@@ -217,6 +219,22 @@ export const DevTools: React.FC<DevToolsProps> = ({ gameStateRef }) => {
                     }}
                 >
                     🪄 Spell Editor
+                </button>
+
+                <button
+                    onClick={() => {
+                        setIsProjectileEditorActive(!isProjectileEditorActive);
+                        if (isWorldEditorActive) setIsWorldEditorActive(false);
+                        if (isSpellEditorActive) setIsSpellEditorActive(false);
+                    }}
+                    style={{
+                        ...btnStyle,
+                        background: isProjectileEditorActive ? '#ec4899' : '#444',
+                        color: isProjectileEditorActive ? '#fff' : '#fff',
+                        fontWeight: isProjectileEditorActive ? 'bold' : 'normal'
+                    }}
+                >
+                    🚀 Projectile Editor
                 </button>
 
                 <button
@@ -257,6 +275,19 @@ export const DevTools: React.FC<DevToolsProps> = ({ gameStateRef }) => {
                 <button onClick={handleFullRestore} style={btnStyle}>Full Heal</button>
                 <button onClick={handleResetCharacter} style={{ ...btnStyle, background: '#EF4444', marginTop: '5px' }}>⚠️ Reset Character</button>
                 <button onClick={handleUnstick} style={{ ...btnStyle, background: '#F59E0B', marginTop: '5px' }}>🔓 Unstick</button>
+                <button
+                    onClick={() => {
+                        if (state) {
+                            if (state.player.cooldowns) state.player.cooldowns = {};
+                            if (state.player.casting?.cooldowns) state.player.casting.cooldowns = {};
+                            console.log('Cooldowns Reset');
+                        }
+                    }}
+                    style={{ ...btnStyle, background: '#3B82F6', marginTop: '5px' }}
+                >
+                    🔄 Reset CDs
+                </button>
+                <button onClick={runVerificationSuite} style={{ ...btnStyle, background: '#8B5CF6', marginTop: '5px' }}>🧪 Test Spells</button>
 
                 <div style={{ fontSize: 12 }}>
                     Enemies: {state?.enemies.length ?? 0}<br />
