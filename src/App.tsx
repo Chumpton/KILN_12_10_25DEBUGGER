@@ -35,6 +35,12 @@ function App() {
   const [gameId, setGameId] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [startInEditor, setStartInEditor] = useState(false);
+  const [initialMapId, setInitialMapId] = useState<string | undefined>(undefined);
+
+  // ...
+
+
 
   // Quest State
   const [activeQuest, setActiveQuest] = useState({
@@ -172,8 +178,10 @@ function App() {
     }
   }
 
-  const handleStartGame = (player: Player) => {
+  const handleStartGame = (player: Player, editorMode: boolean = false, mapId?: string) => {
     setPlayerState(player);
+    setStartInEditor(editorMode);
+    setInitialMapId(mapId);
     setGameStarted(true);
   };
 
@@ -232,6 +240,8 @@ function App() {
             gameStarted={gameStarted}
             onStartGame={handleStartGame}
             initialPlayer={playerState}
+            startInEditor={startInEditor}
+            initialMapId={initialMapId}
           />
           <HUD
             player={playerState}

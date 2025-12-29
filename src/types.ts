@@ -579,6 +579,7 @@ export interface GameState {
   bossSpawnPending?: boolean;
   areaEffects: AreaEffect[];
   isWorldEditorActive?: boolean; // World editor mode flag
+  activeMapId?: string;
   worldObjects: WorldObject[]; // Placed objects from World Editor
   frame: number;
 }

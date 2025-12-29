@@ -27,9 +27,11 @@ import { AtmosphereSystem } from '../systems/AtmosphereSystem';
 import { LootRenderer } from '../modules/loot/LootRenderer';
 import { VfxRenderer } from '../modules/vfx/VfxRenderer';
 import { spawnLoot, updateLoot, tryPickupLoot } from '../modules/loot/LootSystem';
-import { COLORS, TILE_WIDTH, TILE_HEIGHT, CLASS_CONFIG, MAX_LEVEL } from '../constants';
+import { COLORS, TILE_WIDTH, TILE_HEIGHT, CLASS_CONFIG, MAX_LEVEL, HEARTHSTONE_POS } from '../constants';
 
 const globalImageCache = new Map<string, HTMLImageElement>();
+
+import { MapStorage } from '../modules/maps/MapStorage';
 
 interface GameCanvasProps {
     onUiUpdate: (player: Player, score: number, isGameOver: boolean, currentQuest: any, currentShopItems: ShopItem[], currentShopTimer: number, minimapData: any) => void;
@@ -38,9 +40,11 @@ interface GameCanvasProps {
     gameStarted: boolean;
     onStartGame: (player: Player) => void;
     initialPlayer: Player;
+    startInEditor?: boolean;
+    initialMapId?: string;
 }
 
-export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer, onUiUpdate, gameActionsRef }) => {
+export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer, onUiUpdate, gameActionsRef, startInEditor, initialMapId }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const spellCooldownRef = useRef(0);
     const lastTileVersionRef = useRef(0);
@@ -53,6 +57,36 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
     // Target tracking for Click-to-Attack
     const chaseTargetRef = useRef<{ id: string } | null>(null);
     const moveTargetRef = useRef<{ x: number, y: number } | null>(null);
+
+    // Calc Initial World Data
+    const initWorldData = () => {
+        let tiles = [...SAVED_TILE_MAP];
+        let objects = [...SAVED_WORLD_OBJECTS];
+        let mapId = undefined;
+
+        if (initialMapId && initialMapId !== 'NEW') {
+            const map = MapStorage.loadMap(initialMapId);
+            if (map) {
+                // Convert simple map tiles to TileSystem format (sparse to array? no, TileSystem expects TileInstance[])
+                // MapData: {x,y,type}[]
+                // TileInstance: {x,y,type, bitmask, variant}
+                // We assume MapData can be mapped directly.
+                tiles = map.tiles.map(t => ({
+                    x: t.x,
+                    y: t.y,
+                    type: t.type,
+                    bitmask: t.bitmask || 0,
+                    variant: t.variant || 0
+                }));
+                objects = map.objects;
+                mapId = map.id;
+            }
+        }
+        return { tiles, objects, mapId };
+    };
+
+    // Compute once
+    const loadedMap = useRef(initWorldData()).current;
 
     const gameStateRef = useRef<GameState>({
         enemies: [],
@@ -73,10 +107,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
         texts: [],
         areaEffects: [],
         allies: [],
-        worldObjects: [...SAVED_WORLD_OBJECTS],
-        tileMap: [...SAVED_TILE_MAP],
+        worldObjects: loadedMap.objects,
+        tileMap: loadedMap.tiles,
         tileVersion: 0,
-        gameOver: false
+        gameOver: false,
+        isWorldEditorActive: !!startInEditor,
+        activeMapId: loadedMap.mapId
     });
 
     const engineRef = useRef<{
@@ -87,7 +123,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
 
     useEffect(() => {
         // Init singleton once
-        tileSystem.importData(SAVED_TILE_MAP);
+        tileSystem.importData(loadedMap.tiles); // Use the loaded tiles!
+        // ...
 
         // USER REQUEST: Add Basic Sword First
         if (!initialPlayer.equipment.MAIN_HAND) {
@@ -131,6 +168,34 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
             const s = gameStateRef.current;
             if (s && s.player) {
                 s.player.currentSpell = spell;
+            }
+        };
+
+        gameActionsRef.current.castSpell = (spell: SpellType) => {
+            const s = gameStateRef.current;
+            if (s && s.player) {
+                if (spell === SpellType.HEARTHSTONE) {
+                    // Teleport Home
+                    s.player.pos = { ...HEARTHSTONE_POS };
+                    s.player.isDead = false;
+                    s.visualEffects.push({
+                        id: `vfx_${Date.now()}`,
+                        type: 'nova',
+                        pos: { ...s.player.pos },
+                        duration: 60,
+                        startTime: Date.now(),
+                        scale: 1,
+                        data: { color: '#00ffff', radius: 4 }
+                    });
+                    console.log("Hearthstone used! Teleporting to", HEARTHSTONE_POS);
+                } else {
+                    // Normal spell selection/casting
+                    // For now, HUD click selects it? Or triggers instant cast?
+                    // HUD usually intends to SELECT unless it's an instant action.
+                    // But 'handleCastSpell' implies action.
+                    // Let's assume it selects it for targetting unless instant.
+                    s.player.currentSpell = spell;
+                }
             }
         };
 
@@ -634,14 +699,83 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ isPaused, initialPlayer,
                     // Only process standard movement if NOT rolling
                     if (!state.player.roll.isRolling) {
                         state.player.velocity = { x: 0, y: 0 };
+
+                        // KEYBOARD MOVEMENT (WASD + ARROWS)
+                        let dx = 0;
+                        let dy = 0;
+                        if (inputSystem.keys.has('w') || inputSystem.keys.has('ArrowUp')) dy -= 1;
+                        if (inputSystem.keys.has('s') || inputSystem.keys.has('ArrowDown')) dy += 1;
+                        if (inputSystem.keys.has('a') || inputSystem.keys.has('ArrowLeft')) dx -= 1;
+                        if (inputSystem.keys.has('d') || inputSystem.keys.has('ArrowRight')) dx += 1;
+
                         const isCasting = state.player.casting.isCasting;
+
+                        // Prevent movement if casting non-mobile spell?
+                        // User request earlier "maintain movement". So we allow it.
+
+                        let usedKeyboard = false;
+
+                        if (dx !== 0 || dy !== 0) {
+                            usedKeyboard = true;
+                            moveTargetRef.current = null; // Keyboard overrides mouse click
+                            chaseTargetRef.current = null;
+
+                            // Normalize
+                            const len = Math.sqrt(dx * dx + dy * dy);
+                            if (len > 0) {
+                                dx /= len;
+                                dy /= len;
+                            }
+
+                            const vx = dx * speed;
+                            const vy = dy * speed;
+
+                            const nextX = playerPos.x + vx;
+                            const nextY = playerPos.y + vy;
+
+                            // Collision
+                            if (isPositionValid(state, nextX, nextY, state.player.radius)) {
+                                playerPos.x = nextX;
+                                playerPos.y = nextY;
+                            } else {
+                                // Slide Logic (Basic)
+                                if (isPositionValid(state, nextX, playerPos.y, state.player.radius)) playerPos.x = nextX;
+                                else if (isPositionValid(state, playerPos.x, nextY, state.player.radius)) playerPos.y = nextY;
+                            }
+
+                            state.player.velocity.x = vx;
+                            state.player.velocity.y = vy;
+
+                            // Facing
+                            const sDx = vx - vy; // Isometric Facing Approximation
+                            // Or just Use World X?
+                            // In Isometric:
+                            // Right (D) -> World +X -> Screen +X +Y
+                            // Wait, `moveTarget` logic uses `vx - vy`.
+                            // Let's match existing logic.
+                            // If `dx` (World X) > 0, we are moving "East" (Screen Right-Down).
+                            // Isometric conversion `toScreen`: x-y, (x+y)/2.
+                            // Facing Right usually means Screen Right.
+                            // Screen X = (WorldX - WorldY) * TileWidth/2.
+                            // So ScreenDX is proportional to WorldDX - WorldDY.
+                            const screenDx = dx - (-dy); // Wait, toScreen x is (x - y).
+                            // Screen X change = (dx - dy).
+                            // Logic below uses `vx - vy`.
+                            const faceDir = vx - vy;
+
+                            if ((state.player.cooldowns?.['FACING_LOCK'] || 0) <= 0) {
+                                if (faceDir > 0) state.player.facingRight = true;
+                                if (faceDir < 0) state.player.facingRight = false;
+                            }
+                        }
+
                         const isAttacking = state.player.attack.isAttacking;
                         const currentSpell = state.player.casting.currentSpell;
                         const isMobileSpell = currentSpell === SpellType.WHIRLWIND_STRIKE;
 
-                        const canMove = true;
+                        const canMove = true; // Simplified for now
 
-                        if (canMove && moveTargetRef.current) {
+                        if (!usedKeyboard && canMove && moveTargetRef.current) {
                             const dx = moveTargetRef.current.x - playerPos.x;
                             const dy = moveTargetRef.current.y - playerPos.y;
                             const dist = Math.sqrt(dx * dx + dy * dy);

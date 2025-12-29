@@ -43,7 +43,7 @@ export class TileSystem {
         return this.tiles.get(`${x},${y}`);
     }
 
-    setTile(x: number, y: number, type: TileType) {
+    setTile(x: number, y: number, type: TileType, bitmask?: number, variant?: number) {
         const key = `${x},${y}`;
 
         if (type === 'none') {
@@ -53,13 +53,26 @@ export class TileSystem {
                 x,
                 y,
                 type,
-                bitmask: 0,
-                variant: Math.floor(Math.random() * 4)
+                bitmask: bitmask !== undefined ? bitmask : 0,
+                variant: variant !== undefined ? variant : Math.floor(Math.random() * 4)
             };
             this.tiles.set(key, tile);
         }
 
-        // Update this tile and neighbors
+        // Only update neighbors if we didn't force a bitmask (implying we want auto-tiling)
+        // OR always update? If we copy-paste a block, we might want to preserve internal masks
+        // but borders might need update.
+        // For now, if bitmask is provided, we assume "Exact Paste" mode where we might NOT want to recalc immediately?
+        // But the system is live.
+        // Let's rely on standard recalc UNLESS we pass a "skipUpdate" flag? 
+        // Or just let recalc happen. 
+        // If I paste a 4x4 grass block into dirt, the edges will recalc correctly. 
+        // But the internal random variants should definitely be preserved (which the `variant` arg handles).
+        // `bitmask` is deterministic based on neighbors. So passing it is redundant unless we have CUSTOM hardcoded masks.
+        // We generally don't have non-deterministic masks.
+        // So passing `variant` is the key fix for "layers/visuals".
+        // `bitmask` being passed is fine but it will be immediately overwritten by `updateBitmask` below.
+
         this.updateBitmask(x, y);
         this.updateNeighbors(x, y);
     }

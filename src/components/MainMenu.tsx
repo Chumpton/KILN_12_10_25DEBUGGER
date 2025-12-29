@@ -4,11 +4,15 @@ import { RiggingEditor } from './RiggingEditor';
 import { Player } from '../types';
 import { PixelEditor } from './tools/PixelEditor';
 import { SpellStudio } from './SpellStudio';
-
+import { createInitialPlayer } from '../utils/factory';
+import { MapStorage } from '../modules/maps/MapStorage';
+import { SerializedMapData, MapType } from '../modules/maps/MapTypes';
 
 interface MainMenuProps {
-    onStartGame: (player: Player) => void;
+    onStartGame: (player: Player, startInEditor?: boolean, mapId?: string) => void;
 }
+// ...
+
 
 // Simple Pixel Cloud SVG
 const PixelCloud = ({ className, style, opacity = 0.9, scale = 1 }: { className?: string, style?: React.CSSProperties, opacity?: number, scale?: number }) => (
@@ -66,12 +70,39 @@ const VolumeSlider: React.FC<{ label: string, value: number }> = ({ label, value
 );
 
 export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame }) => {
-    const [view, setView] = useState<'MAIN' | 'CONTROLS' | 'MENU' | 'CHAR_SELECT' | 'RIGGING_MENU' | 'BONE_RIGGER' | 'PIXEL_EDITOR' | 'SPELL_STUDIO'>('MAIN');
+    const [view, setView] = useState<'MAIN' | 'CONTROLS' | 'MENU' | 'CHAR_SELECT' | 'RIGGING_MENU' | 'BONE_RIGGER' | 'PIXEL_EDITOR' | 'SPELL_STUDIO' | 'MAP_SELECT'>('MAIN');
+    console.log('[MainMenu] Rendering View:', view);
     const [isStarting, setIsStarting] = useState(false);
     const [mounted, setMounted] = useState(false);
     // --- EDIT MODE STATE ---
     const [editMode, setEditMode] = useState(false);
     const [selectedElement, setSelectedElement] = useState<string | null>(null);
+    const [mapList, setMapList] = useState<any[]>([]);
+    const [loadingMaps, setLoadingMaps] = useState(false);
+    const [mapError, setMapError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (view === 'MAP_SELECT') {
+            console.log("Entering MAP_SELECT view");
+            setLoadingMaps(true);
+            setMapError(null);
+
+            // Use timeout to allow UI to render first
+            setTimeout(() => {
+                try {
+                    MapStorage.initDefaults();
+                    const list = MapStorage.getMapIndex();
+                    console.log("Loaded Maps:", list);
+                    setMapList(list);
+                } catch (e: any) {
+                    console.error("Failed to init MapStorage:", e);
+                    setMapError(e.message || "Unknown Storage Error");
+                } finally {
+                    setLoadingMaps(false);
+                }
+            }, 100);
+        }
+    }, [view]);
 
     // Load initial layout from LocalStorage if available, else default
     const defaultLayout = {
@@ -561,12 +592,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame }) => {
                                         <MenuButton onClick={() => setView('BONE_RIGGER')} icon="">BONE RIGGER</MenuButton>
                                         <MenuButton onClick={() => setView('SPELL_STUDIO')} icon="">SPELL STUDIO</MenuButton>
                                         <MenuButton onClick={() => setView('PIXEL_EDITOR')} icon="">PIXEL FORGE</MenuButton>
-
+                                        <MenuButton onClick={() => setView('MAP_SELECT')} icon="">MAP EDITOR</MenuButton>
 
                                     </div>
                                     <MenuButton onClick={() => setView('MAIN')} icon="">BACK</MenuButton>
                                 </div>
                             )}
+
+
 
                             {view === 'CONTROLS' && (
                                 <div className="animate-in fade-in slide-in-from-left-4 duration-300 bg-black/50 p-8 rounded-xl border border-white/20 theme-text-shadow">
@@ -602,6 +635,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame }) => {
                                 Build v0.3.5-live<br />Earth Engine
                             </div>
                         </div>
+
+                        {/* --- MAP SELECT OVERLAY (Fix for missing UI) --- */}
+
                     </div>
                 </>
             )}
@@ -631,6 +667,95 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onStartGame }) => {
             {view === 'SPELL_STUDIO' && (
                 <div className="absolute inset-0 z-30 bg-[#1a1a1a] animate-in fade-in duration-500">
                     <SpellStudio onBack={() => setView('RIGGING_MENU')} />
+                </div>
+            )}
+
+            {/* 6. MAP SELECT OVERLAY */}
+            {view === 'MAP_SELECT' && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-black/90 p-8 rounded-xl border border-white/20 theme-text-shadow w-[500px] shadow-2xl relative">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-3xl text-white">SELECT MAP</h2>
+                            <button
+                                onClick={() => {
+                                    const dummyPlayer = createInitialPlayer({ name: 'Map Architect' });
+                                    onStartGame(dummyPlayer, true, 'NEW'); // Signal NEW map
+                                }}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded shadow-lg transition-all hover:scale-105"
+                            >
+                                + NEW MAP
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2 mb-4">
+                            <button onClick={() => setMapList([...mapList].sort((a, b) => a.name.localeCompare(b.name)))} className="text-[10px] text-gray-400 hover:text-white uppercase tracking-wider font-bold">[Sort A-Z]</button>
+                            <button onClick={() => setMapList([...mapList].sort((a, b) => b.name.localeCompare(a.name)))} className="text-[10px] text-gray-400 hover:text-white uppercase tracking-wider font-bold">[Sort Z-A]</button>
+                            <button onClick={() => setMapList([...mapList].sort((a, b) => a.type.localeCompare(b.type)))} className="text-[10px] text-gray-400 hover:text-white uppercase tracking-wider font-bold">[Sort Type]</button>
+                        </div>
+
+                        <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto mb-8 pr-2 custom-scrollbar">
+                            {loadingMaps && <div className="text-white text-center py-8">Loading maps and assets...</div>}
+
+                            {mapError && <div className="text-red-500 text-center py-4 border border-red-500 rounded bg-red-900/20">Error: {mapError}</div>}
+
+                            {!loadingMaps && !mapError && mapList.filter(m => m && m.id).map(m => (
+                                <div key={m.id} className="relative group">
+                                    <button
+                                        onClick={() => {
+                                            console.log("Attempting to open map:", m.id);
+                                            try {
+                                                const dummyPlayer = createInitialPlayer({ name: 'Map Architect' });
+                                                console.log("Map Architect Created:", dummyPlayer);
+                                                onStartGame(dummyPlayer, true, m.id);
+                                                console.log("onStartGame Called");
+                                            } catch (err) {
+                                                console.error("Error opening map:", err);
+                                                alert("Failed to open map: " + err);
+                                            }
+                                        }}
+                                        className="w-full text-left bg-white/5 hover:bg-white/10 p-4 rounded flex justify-between items-center border border-white/10 transition-colors"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-[#fbbf24] font-bold text-lg group-hover:text-white transition-colors">{m.name}</span>
+                                            <span className="text-xs text-gray-400 uppercase tracking-widest">{m.type}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-500 group-hover:text-white mr-8 font-bold">OPEN &rarr;</span>
+                                    </button>
+
+                                    {/* Delete Button */}
+                                    {m.id !== 'home_base_default' && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (confirm(`Delete map "${m.name}"? This cannot be undone.`)) {
+                                                    MapStorage.deleteMap(m.id);
+                                                    try {
+                                                        setMapList(MapStorage.getMapIndex());
+                                                    } catch (e) { }
+                                                }
+                                            }}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-red-500 hover:text-red-400 hover:bg-white/10 rounded opacity-0 group-hover:opacity-100 transition-all font-bold"
+                                            title="Delete Map"
+                                        >
+                                            🗑️
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            {!loadingMaps && !mapError && mapList.length === 0 && (
+                                <div className="text-center text-gray-500 py-8 italic">No maps found. Create one!</div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-center">
+                            <button
+                                onClick={() => setView('RIGGING_MENU')}
+                                className="text-gray-400 hover:text-white text-sm font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+                            >
+                                &larr; Return to Workshop
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
